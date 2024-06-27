@@ -95,13 +95,13 @@ class NanoFFModel(pl.LightningModule):
             "input_norm_mat": self.input_norm_mat.detach().numpy().tolist(),
             "output_norm_mat": self.output_norm_mat.detach().numpy().tolist(),
             "temperature": self.temperature,
-            "w_1": self.model[0].weight.detach().numpy().tolist(),
+            "w_1": self.model[0].weight.detach().numpy().T.tolist(),
             "b_1": self.model[0].bias.detach().numpy().tolist(),
-            "w_2": self.model[2].weight.detach().numpy().tolist(),
+            "w_2": self.model[2].weight.detach().numpy().T.tolist(),
             "b_2": self.model[2].bias.detach().numpy().tolist(),
-            "w_3": self.model[4].weight.detach().numpy().tolist(),
+            "w_3": self.model[4].weight.detach().numpy().T.tolist(),
             "b_3": self.model[4].bias.detach().numpy().tolist(),
-            "w_4": self.model[6].weight.detach().numpy().tolist(),
+            "w_4": self.model[6].weight.detach().numpy().T.tolist(),
             "b_4": self.model[6].bias.detach().numpy().tolist(),
         }
         with open("model.json", "w") as f:

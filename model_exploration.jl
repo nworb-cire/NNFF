@@ -48,7 +48,7 @@ inputs = Float32[
 ]
 
 # ╔═╡ 015a6b8c-41e1-4288-b99d-0554a62abf16
-url = "https://raw.githubusercontent.com/commaai/openpilot/master/selfdrive/car/torque_data/neural_ff_weights.json"
+url = "https://raw.githubusercontent.com/nworb-cire/openpilot/volt-nnff/selfdrive/car/torque_data/neural_ff_weights.json"
 
 # ╔═╡ bca046b6-a59f-4571-9741-e67e640b9c9d
 all_weights = let
