@@ -65,10 +65,10 @@ class NanoFFModel(pl.LightningModule):
         # penalize asymmetric distribution of output
         lat_accel = torch.linspace(-3, 0, 100)
         x = torch.stack([lat_accel, torch.zeros_like(lat_accel), torch.full_like(lat_accel, 16), torch.zeros_like(lat_accel)], dim=1).to(self.input_norm_mat.device)
-        y_hat_neg = self.forward(x)
+        y_hat_neg = 2 * self.forward(x) - 1
         lat_accel = torch.linspace(0, 3, 100)
         x = torch.stack([lat_accel, torch.zeros_like(lat_accel), torch.full_like(lat_accel, 16), torch.zeros_like(lat_accel)], dim=1).to(self.input_norm_mat.device)
-        y_hat_pos = self.forward(x)
+        y_hat_pos = 2 * self.forward(x) - 1
         loss += 1e-2 * torch.mean(torch.abs(y_hat_neg - y_hat_pos))
 
         self.log("train_loss", loss, on_step=False, on_epoch=True, prog_bar=True)
@@ -165,7 +165,7 @@ if __name__ == "__main__":
         max_epochs=1000,
         overfit_batches=3,
         check_val_every_n_epoch=100,
-        gradient_clip_val=2.0,
+        precision=32,
     )
     trainer.fit(model, train_loader, val_loader)
     model.save()
