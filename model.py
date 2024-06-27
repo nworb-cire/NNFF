@@ -22,8 +22,8 @@ class NanoFFModel(pl.LightningModule):
             nn.Linear(4, 2),
         )
         # define constant parameters
-        self.input_norm_mat = nn.Parameter(torch.tensor([[-3.0, 3.0], [-3.0, 3.0], [0.0, 40.0], [-3.0, 3.0]], requires_grad=False))
-        self.output_norm_mat = nn.Parameter(torch.tensor([-1.0, 1.0], requires_grad=False))
+        self.input_norm_mat = nn.Parameter(torch.tensor([[-3.0, 3.0], [-3.0, 3.0], [0.0, 40.0], [-3.0, 3.0]]), requires_grad=False)
+        self.output_norm_mat = nn.Parameter(torch.tensor([-1.0, 1.0]), requires_grad=False)
         self.temperature = 100.0
 
     def loss_fn(self, y_hat, y):
