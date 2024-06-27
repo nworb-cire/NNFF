@@ -42,6 +42,8 @@ class NanoFFModel(pl.LightningModule):
         x, y = batch
         y_hat = self.forward(x)
         loss = self.loss_fn(y_hat, y)
+        # penalize output outside of [0, 1]
+        loss += 1e-2 * torch.mean(torch.relu(-y_hat) + torch.relu(y_hat - 1))
         self.log("train_loss", loss, on_step=False, on_epoch=True, prog_bar=True)
         return loss
 
