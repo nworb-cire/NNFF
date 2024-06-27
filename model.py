@@ -13,11 +13,11 @@ class NanoFFModel(pl.LightningModule):
     def __init__(self):
         super().__init__()
         self.model = nn.Sequential(
-            nn.Linear(4, 32),
+            nn.Linear(4, 16),
             nn.ReLU(),
-            nn.Linear(32, 12),
+            nn.Linear(16, 8),
             nn.ReLU(),
-            nn.Linear(12, 4),
+            nn.Linear(8, 4),
             nn.ReLU(),
             nn.Linear(4, 2),
         )
