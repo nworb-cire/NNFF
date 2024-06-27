@@ -29,8 +29,8 @@ class NanoFFModel(pl.LightningModule):
     def loss_fn(self, y_hat, y):
         """NLL of Laplace distribution"""
         loc = y_hat[:, 0]
-        scale = torch.exp(y_hat[:, 1] / self.temperature)
-        loss = torch.mean(torch.abs(loc - y) / scale + torch.log(2 * scale))
+        scale = y_hat[:, 1] / self.temperature
+        loss = torch.mean(torch.abs(loc - y) / torch.exp(scale) + (2 * scale))
         return loss
 
     def forward(self, x):
