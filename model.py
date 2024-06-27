@@ -42,8 +42,19 @@ class NanoFFModel(pl.LightningModule):
         x, y = batch
         y_hat = self.forward(x)
         loss = self.loss_fn(y_hat, y)
+
         # penalize output outside of [0, 1]
         loss += 1e-2 * torch.mean(torch.relu(-y_hat) + torch.relu(y_hat - 1))
+
+        # penalize asymmetric distribution of output
+        lat_accel = torch.linspace(-3, 0, 100)
+        x = torch.stack([lat_accel, torch.zeros_like(lat_accel), torch.full_like(lat_accel, 16), torch.zeros_like(lat_accel)], dim=1).to(self.input_norm_mat.device)
+        y_hat_neg = self.forward(x)
+        lat_accel = torch.linspace(0, 3, 100)
+        x = torch.stack([lat_accel, torch.zeros_like(lat_accel), torch.full_like(lat_accel, 16), torch.zeros_like(lat_accel)], dim=1).to(self.input_norm_mat.device)
+        y_hat_pos = self.forward(x)
+        loss += 1e-2 * torch.mean(torch.abs(y_hat_neg - y_hat_pos))
+
         self.log("train_loss", loss, on_step=False, on_epoch=True, prog_bar=True)
         return loss
 
