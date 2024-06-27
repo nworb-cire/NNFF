@@ -10,7 +10,7 @@ from torch.utils.data import DataLoader, TensorDataset
 
 
 class NanoFFModel(pl.LightningModule):
-    def __init__(self):
+    def __init__(self, from_weights: bool = False):
         super().__init__()
         self.model = nn.Sequential(
             nn.Linear(4, 16),
@@ -21,6 +21,22 @@ class NanoFFModel(pl.LightningModule):
             nn.ReLU(),
             nn.Linear(4, 2),
         )
+        if from_weights:
+            with open("/Users/eric/PycharmProjects/openpilot/selfdrive/car/torque_data/neural_ff_weights.json",
+                      "r") as f:
+                bolt_weights = json.load(f)["CHEVROLET_BOLT_EUV"]
+            self.model[0].weight.data = torch.tensor(bolt_weights["w_1"]).T
+            self.model[0].bias.data = torch.tensor(bolt_weights["b_1"])
+            self.model[2].weight.data = torch.tensor(bolt_weights["w_2"]).T
+            self.model[2].bias.data = torch.tensor(bolt_weights["b_2"])
+            self.model[4].weight.data = torch.tensor(bolt_weights["w_3"]).T
+            self.model[4].bias.data = torch.tensor(bolt_weights["b_3"])
+            self.model[6].weight.data = torch.tensor(bolt_weights["w_4"]).T
+            self.model[6].bias.data = torch.tensor(bolt_weights["b_4"])
+            self.lr = 1e-4
+        else:
+            self.lr = 1e-3
+
         # define constant parameters
         self.input_norm_mat = nn.Parameter(torch.tensor([[-3.0, 3.0], [-3.0, 3.0], [0.0, 40.0], [-3.0, 3.0]]), requires_grad=False)
         self.output_norm_mat = nn.Parameter(torch.tensor([-1.0, 1.0]), requires_grad=False)
@@ -67,7 +83,7 @@ class NanoFFModel(pl.LightningModule):
         return loss
 
     def configure_optimizers(self) -> OptimizerLRScheduler:
-        optimizer = torch.optim.Adam(self.parameters(), lr=1e-3)
+        optimizer = torch.optim.Adam(self.parameters(), lr=self.lr)
         return optimizer
 
     def plot(self, epoch: int | None = None, dir_out: str | None = None):
@@ -144,7 +160,7 @@ if __name__ == "__main__":
     train_set, val_set = torch.utils.data.random_split(dataset, [int(0.8 * N), int(0.2 * N)])
     train_loader = DataLoader(train_set, batch_size=512, shuffle=True)
     val_loader = DataLoader(val_set, batch_size=512, shuffle=False)
-    model = NanoFFModel()
+    model = NanoFFModel(from_weights=True)
     trainer = pl.Trainer(
         max_epochs=1000,
         overfit_batches=3,
