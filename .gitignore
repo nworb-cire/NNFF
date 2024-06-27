@@ -1,0 +1,5 @@
+venv/
+lightning_logs/
+data/
+.idea/
+model.json
