@@ -104,8 +104,13 @@ class NanoFFModel(pl.LightningModule):
             "output_norm_mat": self.output_norm_mat.detach().numpy().tolist(),
             "temperature": self.temperature,
         }
-        with open("model.json", "w") as f:
-            json.dump(d, f)
+
+        path = "/Users/eric/PycharmProjects/openpilot/selfdrive/car/torque_data/neural_ff_weights.json"
+        with open(path, "r") as f:
+            existing = json.load(f)
+        existing["CHEVROLET_VOLT"] = d
+        with open(path, "w") as f:
+            f.write(json.dumps(existing))
 
 
 def get_dataset(platform: str, size: int = -1) -> TensorDataset:
