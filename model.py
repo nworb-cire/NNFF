@@ -60,7 +60,8 @@ class NanoFFModel(pl.LightningModule):
         loss = self.loss_fn(y_hat, y)
 
         # penalize output outside of [0, 1]
-        loss += 1e-2 * torch.mean(torch.relu(-y_hat) + torch.relu(y_hat - 1))
+        mu = y_hat[:, 0]
+        loss += 1e-2 * torch.mean(torch.relu(-mu) + torch.relu(mu - 1))
 
         # penalize asymmetric distribution of output
         lat_accel = torch.linspace(-3, 0, 100)
