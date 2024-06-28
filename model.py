@@ -185,7 +185,11 @@ def objective(trial):
     global model
     pl.seed_everything(0)
     N = 400_000
-    dataset = get_dataset("voltlat_large", size=N, symmetrize=trial.suggest_categorical("symmetrize", [True, False]))
+    dataset = get_dataset(
+        platform="voltlat_large",
+        size=N,
+        # symmetrize=trial.suggest_categorical("symmetrize", [True, False]),
+    )
     train_set, val_set = torch.utils.data.random_split(dataset, [int(0.8 * N), int(0.2 * N)])
     batch_size = 2 ** trial.suggest_int("batch_size_exp", 6, 10)
     train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True)
@@ -215,7 +219,7 @@ def callback(study, trial):
 
 if __name__ == "__main__":
     study = optuna.create_study(
-        study_name="Volt_no_temperature",
+        study_name="Volt_symmetric",
         direction="minimize",
         storage="sqlite:///optuna.db",
         load_if_exists=True,
@@ -223,8 +227,8 @@ if __name__ == "__main__":
     )
     if len(study.trials) == 0:
         study.enqueue_trial(dict(
-            lr=0.0013518577267300218,
-            batch_size_exp=6,
+            lr=0.00038281393677738296,
+            batch_size_exp=10,
         ))
         study.optimize(objective, n_trials=1)
     study.optimize(objective, n_trials=30)
