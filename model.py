@@ -142,7 +142,7 @@ class NanoFFModel(pl.LightningModule):
             f.write(json.dumps(existing))
 
 
-def get_dataset(platform: str, size: int = -1) -> TensorDataset:
+def get_dataset(platform: str, size: int = -1, symmetrize: bool = False) -> TensorDataset:
     df = pd.read_parquet(f"data/{platform}.parquet")
 
     df = df[(df["steer_cmd"] >= -1) & (df["steer_cmd"] <= 1)]
@@ -150,8 +150,20 @@ def get_dataset(platform: str, size: int = -1) -> TensorDataset:
     df = df[(df["roll"] >= -0.17) & (df["roll"] <= 0.17)]  # +/- 10 degrees
     df["roll"] = df["roll"] * 9.81
 
+    if symmetrize:
+        size = size // 2
     if size > 0:
         df = df.sample(size)
+    if symmetrize:
+        df = pd.concat([
+            df,
+            df.assign(
+                lateral_accel=-df["lateral_accel"],
+                roll=-df["roll"],
+                steer_cmd=-df["steer_cmd"],
+            ),
+        ])
+
     x_cols = [
         "lateral_accel",
         "roll",
@@ -172,7 +184,7 @@ def get_dataset(platform: str, size: int = -1) -> TensorDataset:
 def objective(trial):
     pl.seed_everything(0)
     N = 400_000
-    dataset = get_dataset("voltlat_large", size=N)
+    dataset = get_dataset("voltlat_large", size=N, symmetrize=True)
     train_set, val_set = torch.utils.data.random_split(dataset, [int(0.8 * N), int(0.2 * N)])
     batch_size = 2 ** trial.suggest_int("batch_size_exp", 6, 10)
     train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True)
@@ -202,9 +214,10 @@ if __name__ == "__main__":
         load_if_exists=True,
         pruner=optuna.pruners.MedianPruner(n_warmup_steps=598),
     )
-    study.enqueue_trial(dict(
-        lr=0.0013518577267300218,
-        batch_size_exp=6,
-    ))
-    study.optimize(objective, n_trials=1)
-    # study.optimize(objective, n_trials=30)
+    if len(study.trials) == 0:
+        study.enqueue_trial(dict(
+            lr=0.0013518577267300218,
+            batch_size_exp=6,
+        ))
+        study.optimize(objective, n_trials=1)
+    study.optimize(objective, n_trials=20)
