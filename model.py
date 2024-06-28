@@ -134,6 +134,8 @@ def get_dataset(platform: str, size: int = -1) -> TensorDataset:
 
     df = df[(df["steer_cmd"] >= -1) & (df["steer_cmd"] <= 1)]
     df = df[(df["v_ego"] >= 3)]
+    df = df[(df["roll"] >= -0.17) & (df["roll"] <= 0.17)]  # +/- 10 degrees
+    df["roll"] = df["roll"] * 9.81
 
     if size > 0:
         df = df.sample(size)
