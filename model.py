@@ -99,18 +99,21 @@ class NanoFFModel(pl.LightningModule):
                 steer_cmd = y_hat[:, 0].cpu().detach().numpy()
                 ax[i, j].plot(lat_accel, steer_cmd)
                 ax[i, j].set_title(f"roll={roll}, a_ego={a_ego}")
-                ax[i, j].set_ylim(-1.1, 1.1)
+                ax[i, j].set_ylim(-1.3, 1.3)
         plt.tight_layout()
         if dir_out is not None:
             plt.savefig(f"{dir_out}/plot_{epoch}.png")
         else:
             plt.show()
 
+        plt.clf()
         x = torch.stack([lat_accel, torch.zeros_like(lat_accel), torch.full_like(lat_accel, 16.), torch.zeros_like(lat_accel)], dim=1).to(self.input_norm_mat.device)
         y_hat = self.forward(x)
         theta = y_hat[:, 1].cpu().detach().numpy()
         plt.plot(lat_accel, theta)
         plt.title("theta")
+        plt.xlabel("lateral_accel")
+        plt.ylabel("theta")
         if dir_out is not None:
             plt.savefig(f"{dir_out}/theta_{epoch}.png")
         else:
