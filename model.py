@@ -186,5 +186,6 @@ if __name__ == "__main__":
         direction="minimize",
         storage="sqlite:///optuna.db",
         load_if_exists=True,
+        pruner=optuna.pruners.MedianPruner(),
     )
     study.optimize(objective, n_trials=100)
