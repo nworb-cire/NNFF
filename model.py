@@ -106,6 +106,16 @@ class NanoFFModel(pl.LightningModule):
         else:
             plt.show()
 
+        x = torch.stack([lat_accel, torch.zeros_like(lat_accel), torch.full_like(lat_accel, 16.), torch.zeros_like(lat_accel)], dim=1).to(self.input_norm_mat.device)
+        y_hat = self.forward(x)
+        theta = y_hat[:, 1].cpu().detach().numpy()
+        plt.plot(lat_accel, theta)
+        plt.title("theta")
+        if dir_out is not None:
+            plt.savefig(f"{dir_out}/theta_{epoch}.png")
+        else:
+            plt.show()
+
     def save(self):
         d = {
             "w_1": self.model[0].weight.detach().numpy().T.tolist(),
