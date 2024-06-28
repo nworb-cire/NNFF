@@ -1,5 +1,6 @@
 import json
 
+import optuna
 import pandas as pd
 import pytorch_lightning as pl
 import torch
@@ -10,16 +11,24 @@ from torch.utils.data import DataLoader, TensorDataset
 
 
 class NanoFFModel(pl.LightningModule):
-    def __init__(self, from_weights: bool = False):
+    def __init__(
+            self,
+            lr: float,
+            hidden_dims: tuple[int, int, int] = (16, 8, 4),
+            from_weights: bool = False,
+            trial: optuna.Trial | None = None,
+    ):
         super().__init__()
+        self.lr = lr
+        self.trial = trial
         self.model = nn.Sequential(
-            nn.Linear(4, 16),
+            nn.Linear(4, hidden_dims[0]),
             nn.ReLU(),
-            nn.Linear(16, 8),
+            nn.Linear(hidden_dims[0], hidden_dims[1]),
             nn.ReLU(),
-            nn.Linear(8, 4),
+            nn.Linear(hidden_dims[1], hidden_dims[2]),
             nn.ReLU(),
-            nn.Linear(4, 2),
+            nn.Linear(hidden_dims[2], 2),
         )
         if from_weights:
             with open("/Users/eric/PycharmProjects/openpilot/selfdrive/car/torque_data/neural_ff_weights.json",
@@ -33,9 +42,6 @@ class NanoFFModel(pl.LightningModule):
             self.model[4].bias.data = torch.tensor(bolt_weights["b_3"])
             self.model[6].weight.data = torch.tensor(bolt_weights["w_4"]).T
             self.model[6].bias.data = torch.tensor(bolt_weights["b_4"])
-            self.lr = 1e-4
-        else:
-            self.lr = 1e-3
 
         # define constant parameters
         self.input_norm_mat = nn.Parameter(torch.tensor([[-3.0, 3.0], [-3.0, 3.0], [0.0, 40.0], [-3.0, 3.0]]), requires_grad=False)
@@ -66,6 +72,8 @@ class NanoFFModel(pl.LightningModule):
         x, y = batch
         y_hat = self.forward(x)
         loss = self.loss_fn(y_hat, y)
+        if self.trial is not None:
+            self.trial.report(loss.item(), self.current_epoch)
         self.log("val_loss", loss, on_step=False, on_epoch=True, prog_bar=True)
         self.plot(self.current_epoch, self.trainer.log_dir)
         return loss
@@ -139,19 +147,40 @@ def get_dataset(platform: str, size: int = -1) -> TensorDataset:
     return dataset
 
 
-if __name__ == "__main__":
+def objective(trial):
     pl.seed_everything(0)
     N = 400_000
     dataset = get_dataset("voltlat_large", size=N)
     train_set, val_set = torch.utils.data.random_split(dataset, [int(0.8 * N), int(0.2 * N)])
-    train_loader = DataLoader(train_set, batch_size=512, shuffle=True)
-    val_loader = DataLoader(val_set, batch_size=512, shuffle=False)
-    model = NanoFFModel(from_weights=False)
+    batch_size = 2 ** trial.suggest_int("batch_size_exp", 6, 10)
+    train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True)
+    val_loader = DataLoader(val_set, batch_size=batch_size, shuffle=False)
+    model = NanoFFModel(
+        lr=trial.suggest_float("lr", 1e-5, 1e-2, log=True),
+        hidden_dims=(
+            int(trial.suggest_int("hidden_dim_1", 4, 32)),
+            int(trial.suggest_int("hidden_dim_2", 4, 32)),
+            int(trial.suggest_int("hidden_dim_3", 4, 32)),
+        ),
+        from_weights=False,
+        trial=trial,
+    )
     trainer = pl.Trainer(
-        max_epochs=1000,
+        max_epochs=2000,
         overfit_batches=3,
         check_val_every_n_epoch=100,
         precision=32,
+        logger=False,
     )
     trainer.fit(model, train_loader, val_loader)
-    model.save()
+    return trainer.callback_metrics["val_loss"].item()
+
+
+if __name__ == "__main__":
+    study = optuna.create_study(
+        study_name="Volt",
+        direction="minimize",
+        storage="sqlite:///optuna.db",
+        load_if_exists=True,
+    )
+    study.optimize(objective, n_trials=100)
