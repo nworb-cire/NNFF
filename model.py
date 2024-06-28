@@ -51,7 +51,7 @@ class NanoFFModel(pl.LightningModule):
     def loss_fn(self, y_hat, y):
         """NLL of Laplace distribution"""
         mu = y_hat[:, 0]
-        theta = y_hat[:, 1] / self.temperature
+        theta = y_hat[:, 1]
         loss = torch.mean((torch.abs(mu - y) / torch.exp(theta)) + theta)
         return loss
 
@@ -109,7 +109,7 @@ class NanoFFModel(pl.LightningModule):
         plt.clf()
         x = torch.stack([lat_accel, torch.zeros_like(lat_accel), torch.full_like(lat_accel, 16.), torch.zeros_like(lat_accel)], dim=1).to(self.input_norm_mat.device)
         y_hat = self.forward(x)
-        theta = torch.exp(y_hat[:, 1] / self.temperature).cpu().detach().numpy()
+        theta = torch.exp(y_hat[:, 1]).cpu().detach().numpy()
         plt.plot(lat_accel, theta)
         plt.title("theta")
         plt.xlabel("lateral_accel")
@@ -182,9 +182,10 @@ def get_dataset(platform: str, size: int = -1, symmetrize: bool = False) -> Tens
 
 
 def objective(trial):
+    global model
     pl.seed_everything(0)
     N = 400_000
-    dataset = get_dataset("voltlat_large", size=N, symmetrize=True)
+    dataset = get_dataset("voltlat_large", size=N, symmetrize=trial.suggest_categorical("symmetrize", [True, False]))
     train_set, val_set = torch.utils.data.random_split(dataset, [int(0.8 * N), int(0.2 * N)])
     batch_size = 2 ** trial.suggest_int("batch_size_exp", 6, 10)
     train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True)
@@ -195,20 +196,26 @@ def objective(trial):
         trial=trial,
     )
     trainer = pl.Trainer(
-        max_epochs=1000,
+        max_epochs=1500,
         overfit_batches=3,
-        check_val_every_n_epoch=100,
+        check_val_every_n_epoch=250,
         precision=32,
         logger=False,
     )
     trainer.fit(model, train_loader, val_loader)
-    model.save()
     return trainer.callback_metrics["val_loss"].item()
+
+
+def callback(study, trial):
+    global best_model
+    if study.best_trial == trial:
+        best_model = model
+        best_model.save()
 
 
 if __name__ == "__main__":
     study = optuna.create_study(
-        study_name="Volt_reduced2",
+        study_name="Volt_no_temperature",
         direction="minimize",
         storage="sqlite:///optuna.db",
         load_if_exists=True,
@@ -220,4 +227,4 @@ if __name__ == "__main__":
             batch_size_exp=6,
         ))
         study.optimize(objective, n_trials=1)
-    study.optimize(objective, n_trials=20)
+    study.optimize(objective, n_trials=30)
