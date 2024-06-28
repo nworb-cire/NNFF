@@ -44,9 +44,9 @@ class NanoFFModel(pl.LightningModule):
 
     def loss_fn(self, y_hat, y):
         """NLL of Laplace distribution"""
-        loc = y_hat[:, 0]
-        scale = y_hat[:, 1] / self.temperature
-        loss = torch.mean(torch.abs(loc - y) / torch.exp(scale) + scale)
+        mu = y_hat[:, 0]
+        theta = y_hat[:, 1] / self.temperature
+        loss = torch.mean((torch.abs(mu - y) / torch.exp(theta)) + theta)
         return loss
 
     def forward(self, x):
@@ -58,19 +58,6 @@ class NanoFFModel(pl.LightningModule):
         x, y = batch
         y_hat = self.forward(x)
         loss = self.loss_fn(y_hat, y)
-
-        # penalize output outside of [0, 1]
-        mu = y_hat[:, 0]
-        loss += 1e-2 * torch.mean(torch.relu(-mu) + torch.relu(mu - 1))
-
-        # penalize asymmetric distribution of output
-        lat_accel = torch.linspace(-3, 0, 100)
-        x = torch.stack([lat_accel, torch.zeros_like(lat_accel), torch.full_like(lat_accel, 16), torch.zeros_like(lat_accel)], dim=1).to(self.input_norm_mat.device)
-        y_hat_neg = 2 * self.forward(x) - 1
-        lat_accel = torch.linspace(0, 3, 100)
-        x = torch.stack([lat_accel, torch.zeros_like(lat_accel), torch.full_like(lat_accel, 16), torch.zeros_like(lat_accel)], dim=1).to(self.input_norm_mat.device)
-        y_hat_pos = 2 * self.forward(x) - 1
-        loss += 1e-2 * torch.mean(torch.abs(y_hat_neg - y_hat_pos))
 
         self.log("train_loss", loss, on_step=False, on_epoch=True, prog_bar=True)
         return loss
@@ -132,8 +119,6 @@ class NanoFFModel(pl.LightningModule):
 
 def get_dataset(platform: str, size: int = -1) -> TensorDataset:
     df = pd.read_parquet(f"data/{platform}.parquet")
-    # remove outliers
-    df = df[(df["steer_cmd"] > -1) & (df["steer_cmd"] < 1)]
 
     if size > 0:
         df = df.sample(size)
@@ -161,7 +146,7 @@ if __name__ == "__main__":
     train_set, val_set = torch.utils.data.random_split(dataset, [int(0.8 * N), int(0.2 * N)])
     train_loader = DataLoader(train_set, batch_size=512, shuffle=True)
     val_loader = DataLoader(val_set, batch_size=512, shuffle=False)
-    model = NanoFFModel(from_weights=True)
+    model = NanoFFModel(from_weights=False)
     trainer = pl.Trainer(
         max_epochs=1000,
         overfit_batches=3,
