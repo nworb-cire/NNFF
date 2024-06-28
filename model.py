@@ -188,4 +188,12 @@ if __name__ == "__main__":
         load_if_exists=True,
         pruner=optuna.pruners.MedianPruner(),
     )
+    if len(study.trials) == 0:
+        study.enqueue_trial(dict(
+            lr=1e-3,
+            batch_size_exp=9,
+            hidden_dim_1=16,
+            hidden_dim_2=8,
+            hidden_dim_3=4,
+        ))
     study.optimize(objective, n_trials=100)
