@@ -73,10 +73,10 @@ class NanoFFModel(pl.LightningModule):
         y_hat = self.forward(x)
         loss = self.loss_fn(y_hat, y)
         self.log("val_loss", loss, on_step=False, on_epoch=True, prog_bar=True)
-        self.plot(self.current_epoch, self.trainer.log_dir)
         return loss
 
     def on_validation_epoch_end(self) -> None:
+        self.plot(self.current_epoch, self.trainer.log_dir)
         if self.trial is not None:
             self.trial.report(self.trainer.callback_metrics["val_loss"].item(), self.current_epoch)
             if self.trial.should_prune():
