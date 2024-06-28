@@ -109,7 +109,7 @@ class NanoFFModel(pl.LightningModule):
         plt.clf()
         x = torch.stack([lat_accel, torch.zeros_like(lat_accel), torch.full_like(lat_accel, 16.), torch.zeros_like(lat_accel)], dim=1).to(self.input_norm_mat.device)
         y_hat = self.forward(x)
-        theta = y_hat[:, 1].cpu().detach().numpy()
+        theta = torch.exp(y_hat[:, 1] / self.temperature).cpu().detach().numpy()
         plt.plot(lat_accel, theta)
         plt.title("theta")
         plt.xlabel("lateral_accel")
