@@ -30,7 +30,7 @@ lateral_acceleration = -3.:0.1:3.
 n = length(lateral_acceleration)
 
 # ╔═╡ 89ace1e6-c8a6-49dc-86ab-4db1cdb4baff
-@bind n_samples Slider(0:n:100n, show_value=true)  # 0 for deterministic
+@bind n_samples Slider(0:n:20n, show_value=true)  # 0 for deterministic
 
 # ╔═╡ 0efae837-6661-4092-bac7-2919e8080b85
 @bind roll_compensation Slider(-3.:0.01:3., default=0., show_value=true)
@@ -55,11 +55,12 @@ all_weights = let
 	import HTTP
 	import JSON
 	response = HTTP.get(url)
-	JSON.parse(String(response.body))
+	# JSON.parse(String(response.body))
+	JSON.parse(open("/Users/eric/PycharmProjects/openpilot/selfdrive/car/torque_data/neural_ff_weights.json"))
 end
 
 # ╔═╡ 0795baf3-c925-466e-8fd9-6cfad9780800
-@bind car Select(collect(keys(all_weights)))
+@bind car Select(collect(keys(all_weights)), default="CHEVROLET_VOLT")
 
 # ╔═╡ a09bf2e3-a801-4d9a-9187-cfb3bcabbe25
 model_weights = let
@@ -111,6 +112,9 @@ end
 # ╔═╡ 40d6785f-b485-4ff1-aaf6-676a5baaad16
 import Distributions: Laplace
 
+# ╔═╡ 5e8a8826-f912-4600-bc78-bb11f1af8069
+import Random
+
 # ╔═╡ a2130da8-b712-440b-8cd2-822583db09ed
 function predict(m::NanoFFModel{T}, x::VecOrMat{T}, n::Int=1) where T
 	x = m(x)
@@ -119,8 +123,10 @@ function predict(m::NanoFFModel{T}, x::VecOrMat{T}, n::Int=1) where T
 		preds = μ'
 	else
 		θ = x[2, :]
-		dist = Laplace.(μ, exp.(θ) ./ m.temperature)
-		preds = hcat(rand.(dist, n)...)
+		dist = Laplace.(μ, exp.(θ))
+		rng = Random.default_rng()
+		Random.seed!(rng, 0)
+		preds = hcat(rand.(rng, dist, n)...)
 	end
 	preds = preds .* (m.norm_out[:, 2] - m.norm_out[:, 1])
 	preds = preds .+ m.norm_out[:, 1]
@@ -131,10 +137,23 @@ m = NanoFFModel{Float32}(model_weights)
 
 # ╔═╡ f14ec22b-472e-48bc-ba21-baadf786a658
 let
-    p = scatter(lateral_acceleration, predict(m, inputs, n_samples ÷ n)', xlabel="lateral_acceleration", ylabel="steer", legend=false; markercolor="blue")
+	if n_samples == 0
+		fn = plot
+	else
+		fn = scatter
+	end
+    p = fn(lateral_acceleration, predict(m, inputs, n_samples ÷ n)', xlabel="lateral_acceleration", ylabel="steer", legend=false, title="Roll=$roll_compensation, vEgo=$vego, aEgo=$aego"; markercolor="blue")
 	ylims!(p, -3, 3)
 	p
 end
+
+# ╔═╡ e4ae5bdb-7cef-45a3-a4d8-3b88f368feb3
+plot(
+	lateral_acceleration,
+	exp.(m(inputs)[2, :]),
+	xlabel="lateral acceleration",
+	ylabel="θ"
+)
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
@@ -145,6 +164,7 @@ JSON = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
 NNlib = "872c559c-99b0-510c-b3b7-b6c96a88d5cd"
 Plots = "91a5bcdd-55d7-5caf-9e0b-520d859cae80"
 PlutoUI = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
+Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 
 [compat]
 Distributions = "~0.25.109"
@@ -161,7 +181,7 @@ PLUTO_MANIFEST_TOML_CONTENTS = """
 
 julia_version = "1.10.4"
 manifest_format = "2.0"
-project_hash = "1cfd7f0aa945443eb023920a7d026fb46e3bdb7d"
+project_hash = "48bcab52542c4688813c5f95d9e08949f211c27d"
 
 [[deps.AbstractPlutoDingetjes]]
 deps = ["Pkg"]
@@ -1478,7 +1498,9 @@ version = "1.4.1+1"
 """
 
 # ╔═╡ Cell order:
-# ╠═f14ec22b-472e-48bc-ba21-baadf786a658
+# ╠═0795baf3-c925-466e-8fd9-6cfad9780800
+# ╟─f14ec22b-472e-48bc-ba21-baadf786a658
+# ╟─e4ae5bdb-7cef-45a3-a4d8-3b88f368feb3
 # ╠═89ace1e6-c8a6-49dc-86ab-4db1cdb4baff
 # ╠═fa837e87-be08-4e08-a749-f73566e327cb
 # ╠═cb3a2d63-3187-495d-80fe-cff94d6beaa2
@@ -1486,7 +1508,6 @@ version = "1.4.1+1"
 # ╠═48bb40d1-f31c-4d07-b2b3-39ec2223dc35
 # ╠═c9a294d0-eb3b-4c7e-a662-7d896f88ba9b
 # ╠═71b59ab9-f3e7-40a1-8446-b23a41703aea
-# ╠═0795baf3-c925-466e-8fd9-6cfad9780800
 # ╟─015a6b8c-41e1-4288-b99d-0554a62abf16
 # ╠═bca046b6-a59f-4571-9741-e67e640b9c9d
 # ╠═a09bf2e3-a801-4d9a-9187-cfb3bcabbe25
@@ -1494,6 +1515,7 @@ version = "1.4.1+1"
 # ╠═40501ecf-3f0a-4350-b15c-50a313291ada
 # ╠═cbd761fe-8cb9-437a-a2bc-89ce93dfdbbd
 # ╠═40d6785f-b485-4ff1-aaf6-676a5baaad16
+# ╠═5e8a8826-f912-4600-bc78-bb11f1af8069
 # ╠═a2130da8-b712-440b-8cd2-822583db09ed
 # ╠═53b0f8e5-9d70-4280-a427-7a9e75911c37
 # ╠═5c6e696a-371c-4ff7-a692-d383b0838b23
