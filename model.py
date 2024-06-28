@@ -161,11 +161,11 @@ def objective(trial):
     N = 400_000
     dataset = get_dataset("voltlat_large", size=N)
     train_set, val_set = torch.utils.data.random_split(dataset, [int(0.8 * N), int(0.2 * N)])
-    batch_size = 1024
+    batch_size = 2 ** trial.suggest_int("batch_size_exp", 6, 10)
     train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True)
     val_loader = DataLoader(val_set, batch_size=batch_size, shuffle=False)
     model = NanoFFModel(
-        lr=1e-3,
+        lr=trial.suggest_float("lr", 1e-6, 1e-2, log=True),
         from_weights=False,
         trial=trial,
     )
@@ -177,25 +177,21 @@ def objective(trial):
         logger=False,
     )
     trainer.fit(model, train_loader, val_loader)
+    model.save()
     return trainer.callback_metrics["val_loss"].item()
 
 
 if __name__ == "__main__":
-    # study = optuna.create_study(
-    #     study_name="Volt",
-    #     direction="minimize",
-    #     storage="sqlite:///optuna.db",
-    #     load_if_exists=True,
-    #     pruner=optuna.pruners.MedianPruner(n_warmup_steps=600),
-    # )
-    # if len(study.trials) == 0:
-    #     study.enqueue_trial(dict(
-    #         lr=1e-3,
-    #         batch_size_exp=9,
-    #         hidden_dim_1=16,
-    #         hidden_dim_2=8,
-    #         hidden_dim_3=4,
-    #         l2=0.0,
-    #     ))
-    # study.optimize(objective, n_trials=100)
-    print(objective(None))
+    study = optuna.create_study(
+        study_name="Volt_reduced2",
+        direction="minimize",
+        storage="sqlite:///optuna.db",
+        load_if_exists=True,
+        pruner=optuna.pruners.MedianPruner(n_warmup_steps=598),
+    )
+    study.enqueue_trial(dict(
+        lr=0.0013518577267300218,
+        batch_size_exp=6,
+    ))
+    study.optimize(objective, n_trials=1)
+    # study.optimize(objective, n_trials=30)
