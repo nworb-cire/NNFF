@@ -132,6 +132,9 @@ class NanoFFModel(pl.LightningModule):
 def get_dataset(platform: str, size: int = -1) -> TensorDataset:
     df = pd.read_parquet(f"data/{platform}.parquet")
 
+    df = df[(df["steer_cmd"] >= -1) & (df["steer_cmd"] <= 1)]
+    df = df[(df["v_ego"] >= 3)]
+
     if size > 0:
         df = df.sample(size)
     x_cols = [
@@ -156,21 +159,16 @@ def objective(trial):
     N = 400_000
     dataset = get_dataset("voltlat_large", size=N)
     train_set, val_set = torch.utils.data.random_split(dataset, [int(0.8 * N), int(0.2 * N)])
-    batch_size = 2 ** trial.suggest_int("batch_size_exp", 6, 10)
+    batch_size = 1024
     train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True)
     val_loader = DataLoader(val_set, batch_size=batch_size, shuffle=False)
     model = NanoFFModel(
-        lr=trial.suggest_float("lr", 1e-5, 1e-2, log=True),
-        hidden_dims=(
-            int(trial.suggest_int("hidden_dim_1", 4, 32)),
-            int(trial.suggest_int("hidden_dim_2", 4, 32)),
-            int(trial.suggest_int("hidden_dim_3", 4, 32)),
-        ),
+        lr=1e-3,
         from_weights=False,
         trial=trial,
     )
     trainer = pl.Trainer(
-        max_epochs=2000,
+        max_epochs=1000,
         overfit_batches=3,
         check_val_every_n_epoch=100,
         precision=32,
@@ -181,19 +179,21 @@ def objective(trial):
 
 
 if __name__ == "__main__":
-    study = optuna.create_study(
-        study_name="Volt",
-        direction="minimize",
-        storage="sqlite:///optuna.db",
-        load_if_exists=True,
-        pruner=optuna.pruners.MedianPruner(n_warmup_steps=600),
-    )
-    if len(study.trials) == 0:
-        study.enqueue_trial(dict(
-            lr=1e-3,
-            batch_size_exp=9,
-            hidden_dim_1=16,
-            hidden_dim_2=8,
-            hidden_dim_3=4,
-        ))
-    study.optimize(objective, n_trials=100)
+    # study = optuna.create_study(
+    #     study_name="Volt",
+    #     direction="minimize",
+    #     storage="sqlite:///optuna.db",
+    #     load_if_exists=True,
+    #     pruner=optuna.pruners.MedianPruner(n_warmup_steps=600),
+    # )
+    # if len(study.trials) == 0:
+    #     study.enqueue_trial(dict(
+    #         lr=1e-3,
+    #         batch_size_exp=9,
+    #         hidden_dim_1=16,
+    #         hidden_dim_2=8,
+    #         hidden_dim_3=4,
+    #         l2=0.0,
+    #     ))
+    # study.optimize(objective, n_trials=100)
+    print(objective(None))
