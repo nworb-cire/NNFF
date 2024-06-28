@@ -230,5 +230,4 @@ if __name__ == "__main__":
             lr=0.00038281393677738296,
             batch_size_exp=10,
         ))
-        study.optimize(objective, n_trials=1)
-    study.optimize(objective, n_trials=30)
+    study.optimize(objective, n_trials=30, callbacks=[callback])
