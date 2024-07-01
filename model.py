@@ -194,7 +194,6 @@ def get_dataset(platform: str, size: int = -1, symmetrize: bool = False) -> Tens
 
 
 def objective(trial, platform: str, train_set, val_set):
-    global model
     pl.seed_everything(0)
     batch_size = 2 ** trial.suggest_int("batch_size_exp", 6, 10)
     train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True)
@@ -233,13 +232,6 @@ def generate_objective(platform: str, save_as: str):
     return lambda trial: objective(trial, save_as, train_set, val_set)
 
 
-def callback(study, trial):
-    global best_model
-    if study.best_trial == trial:
-        best_model = model
-        best_model.save()
-
-
 if __name__ == "__main__":
     study = optuna.create_study(
         study_name="Volt_Comma",
@@ -256,5 +248,4 @@ if __name__ == "__main__":
     study.optimize(
         generate_objective(platform="CHEVROLET_VOLT_PREMIER_2017", save_as="CHEVROLET_VOLT"),
         n_trials=30,
-        callbacks=[callback],
     )
