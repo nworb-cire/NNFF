@@ -1,4 +1,5 @@
 import json
+import glob
 
 import optuna
 import pandas as pd
@@ -17,10 +18,12 @@ class NanoFFModel(pl.LightningModule):
             hidden_dims: tuple[int, int, int] = (16, 8, 4),
             from_weights: bool = False,
             trial: optuna.Trial | None = None,
+            platform: str | None = None,
     ):
         super().__init__()
         self.lr = lr
         self.trial = trial
+        self.platform = platform
         self.model = nn.Sequential(
             nn.Linear(4, hidden_dims[0]),
             nn.ReLU(),
@@ -120,6 +123,7 @@ class NanoFFModel(pl.LightningModule):
             plt.show()
 
     def save(self):
+        assert self.platform is not None
         d = {
             "w_1": self.model[0].weight.detach().numpy().T.tolist(),
             "b_1": self.model[0].bias.detach().numpy().tolist(),
@@ -137,18 +141,26 @@ class NanoFFModel(pl.LightningModule):
         path = "/Users/eric/PycharmProjects/openpilot/selfdrive/car/torque_data/neural_ff_weights.json"
         with open(path, "r") as f:
             existing = json.load(f)
-        existing["CHEVROLET_VOLT"] = d
+        existing[self.platform] = d
         with open(path, "w") as f:
             f.write(json.dumps(existing))
 
 
 def get_dataset(platform: str, size: int = -1, symmetrize: bool = False) -> TensorDataset:
-    df = pd.read_parquet(f"data/{platform}.parquet")
+    files = glob.glob(f"data/{platform}/*.csv")
+    assert len(files) > 0, f"No data found for {platform}"
+    df = []
+    for file in files:
+        df.append(pd.read_csv(file))
+    df = pd.concat(df)
 
-    df = df[(df["steer_cmd"] >= -1) & (df["steer_cmd"] <= 1)]
-    df = df[(df["v_ego"] >= 3)]
+    df = df[df["latActive"] & ~df["steeringPressed"]]
+    df = df[(df["steer"] >= -1) & (df["steer"] <= 1)]
+    df = df[(df["vEgo"] >= 3)]
     df = df[(df["roll"] >= -0.17) & (df["roll"] <= 0.17)]  # +/- 10 degrees
-    df["roll"] = df["roll"] * 9.81
+    df["roll"] = df["roll"] * 9.8
+
+    df["latAccel"] = df["latAccelSteeringAngle"]
 
     if symmetrize:
         size = size // 2
@@ -158,19 +170,19 @@ def get_dataset(platform: str, size: int = -1, symmetrize: bool = False) -> Tens
         df = pd.concat([
             df,
             df.assign(
-                lateral_accel=-df["lateral_accel"],
+                lateral_accel=-df["latAccel"],
                 roll=-df["roll"],
-                steer_cmd=-df["steer_cmd"],
+                steer_cmd=-df["steer"],
             ),
         ])
 
     x_cols = [
-        "lateral_accel",
+        "latAccel",
         "roll",
-        "v_ego",
-        "a_ego",
+        "vEgo",
+        "aEgo",
     ]
-    y_col = "steer_cmd"
+    y_col = "steer"
     x = df[x_cols].values
     y = df[y_col].values
     y = (y + 1) / 2  # normalize to [0, 1]
@@ -181,16 +193,9 @@ def get_dataset(platform: str, size: int = -1, symmetrize: bool = False) -> Tens
     return dataset
 
 
-def objective(trial):
+def objective(trial, platform: str, train_set, val_set):
     global model
     pl.seed_everything(0)
-    N = 400_000
-    dataset = get_dataset(
-        platform="voltlat_large",
-        size=N,
-        # symmetrize=trial.suggest_categorical("symmetrize", [True, False]),
-    )
-    train_set, val_set = torch.utils.data.random_split(dataset, [int(0.8 * N), int(0.2 * N)])
     batch_size = 2 ** trial.suggest_int("batch_size_exp", 6, 10)
     train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True)
     val_loader = DataLoader(val_set, batch_size=batch_size, shuffle=False)
@@ -198,16 +203,34 @@ def objective(trial):
         lr=trial.suggest_float("lr", 1e-6, 1e-2, log=True),
         from_weights=False,
         trial=trial,
+        platform=platform,
     )
     trainer = pl.Trainer(
-        max_epochs=1500,
+        max_epochs=2000,
         overfit_batches=3,
         check_val_every_n_epoch=250,
         precision=32,
         logger=False,
     )
     trainer.fit(model, train_loader, val_loader)
-    return trainer.callback_metrics["val_loss"].item()
+    val_loss = trainer.callback_metrics["val_loss"].item()
+    if len(trial.study.best_trials) == 0 or val_loss <= trial.study.best_value:
+        print(f"New best model found with val_loss={val_loss}")
+        model.save()
+    return val_loss
+
+
+def generate_objective(platform: str, save_as: str):
+    pl.seed_everything(0)
+    N = 400_000
+    dataset = get_dataset(
+        platform=platform,
+        size=N,
+    )
+
+    N = len(dataset)  # in case we undersampled
+    train_set, val_set = torch.utils.data.random_split(dataset, [int(0.8 * N), N - int(0.8 * N)])
+    return lambda trial: objective(trial, save_as, train_set, val_set)
 
 
 def callback(study, trial):
@@ -219,7 +242,7 @@ def callback(study, trial):
 
 if __name__ == "__main__":
     study = optuna.create_study(
-        study_name="Volt_symmetric",
+        study_name="Volt_Comma",
         direction="minimize",
         storage="sqlite:///optuna.db",
         load_if_exists=True,
@@ -227,7 +250,11 @@ if __name__ == "__main__":
     )
     if len(study.trials) == 0:
         study.enqueue_trial(dict(
-            lr=0.00038281393677738296,
-            batch_size_exp=10,
+            lr=0.0003516815619480295,
+            batch_size_exp=7,
         ))
-    study.optimize(objective, n_trials=30, callbacks=[callback])
+    study.optimize(
+        generate_objective(platform="CHEVROLET_VOLT_PREMIER_2017", save_as="CHEVROLET_VOLT"),
+        n_trials=30,
+        callbacks=[callback],
+    )
