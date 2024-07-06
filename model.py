@@ -146,63 +146,75 @@ class NanoFFModel(pl.LightningModule):
             f.write(json.dumps(existing))
 
 
-def get_dataset(platform: str, size: int = -1, symmetrize: bool = False) -> TensorDataset:
-    if os.path.isdir(f"data/{platform}"):
-        files = glob.glob(f"data/{platform}/*.csv")
-        assert len(files) > 0, f"No data found for {platform}"
-        df = []
-        for file in files:
-            df.append(pd.read_csv(file))
-        df = pd.concat(df)
-    else:
-        df = pd.read_feather(f"data/{platform}.feather")
+class DataModule(pl.LightningDataModule):
+    df_train: pd.DataFrame
+    df_val: pd.DataFrame
 
-    df = df[(df["steer_cmd"] >= -1) & (df["steer_cmd"] <= 1)]
-    df = df[(df["v_ego"] >= 3)]
-    df = df[(df["roll"] >= -0.17) & (df["roll"] <= 0.17)]  # +/- 10 degrees
-    df["roll"] = df["roll"] * 9.8
+    def __init__(self, platform: str, N_train: int, N_val: int, symmetrize: bool = False, batch_size: int = 64):
+        super().__init__()
+        self.platform = platform
+        self.N_train = N_train
+        self.N_val = N_val
+        self.symmetrize = symmetrize
+        self.batch_size = batch_size
 
-    if symmetrize:
-        size = size // 2
-    if size > 0:
-        df = df.sample(size)
-    if symmetrize:
-        df = pd.concat([
-            df,
-            df.assign(
-                lateral_accel=-df["lateral_accel"],
-                roll=-df["roll"],
-                steer_cmd=-df["steer_cmd"],
-            ),
-        ])
+    def setup(self, stage: str | None = None):
+        if os.path.isdir(f"data/{self.platform}"):
+            files = glob.glob(f"data/{self.platform}/*.csv")
+            assert len(files) > 0, f"No data found for {self.platform}"
+            df = []
+            for file in files:
+                df.append(pd.read_csv(file))
+            df = pd.concat(df)
+        else:
+            df = pd.read_feather(f"data/{self.platform}.feather")
 
-    x_cols = [
-        "lateral_accel",
-        "roll",
-        "v_ego",
-        "a_ego",
-    ]
-    y_col = "steer_cmd"
-    x = df[x_cols].values
-    y = df[y_col].values
-    y = (y + 1) / 2  # normalize to [0, 1]
+        df = df[(df["roll"] >= -0.17) & (df["roll"] <= 0.17)]  # +/- 10 degrees
+        df["roll"] = df["roll"] * 9.8
 
-    x = torch.tensor(x, dtype=torch.float32)
-    y = torch.tensor(y, dtype=torch.float32)
-    dataset = torch.utils.data.TensorDataset(x, y)
-    return dataset
+        self.df_val = df.sample(self.N_val, random_state=0)
+        self.df_train = df.drop(self.df_val.index).sample(self.N_train, random_state=0)
+
+    @staticmethod
+    def split(df: pd.DataFrame) -> TensorDataset:
+        x_cols = [
+            "lateral_accel",
+            "roll",
+            "v_ego",
+            "a_ego",
+        ]
+        y_col = "steer_cmd"
+        x = torch.tensor(df[x_cols].values, dtype=torch.float32)
+        y = torch.tensor(df[y_col].values, dtype=torch.float32)
+        y = (y + 1) / 2  # normalize to [0, 1]
+        return TensorDataset(x, y)
+
+    def train_dataloader(self):
+        assert self.df_train is not None
+        df = self.df_train
+        df = df[(df["steer_cmd"] >= -1) & (df["steer_cmd"] <= 1)]
+        df = df[(df["v_ego"] >= 3)]
+        if self.symmetrize:
+            raise NotImplementedError
+        dataset = self.split(df)
+        return DataLoader(dataset, batch_size=self.batch_size, shuffle=True)
+
+    def val_dataloader(self):
+        assert self.df_val is not None
+        df = self.df_val
+        dataset = self.split(df)
+        # larger batch size since we aren't computing gradients
+        return DataLoader(dataset, batch_size=4 * self.batch_size, shuffle=False)
 
 
-def objective(trial, platform: str, train_set, val_set):
+def objective(trial, platform: str, save_as: str):
     pl.seed_everything(0)
-    batch_size = 2 ** trial.suggest_int("batch_size_exp", 6, 10)
-    train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True)
-    val_loader = DataLoader(val_set, batch_size=batch_size, shuffle=False)
+    data_module = DataModule(platform, N_train=320_000, N_val=80_000, batch_size=2 ** trial.suggest_int("batch_size_exp", 6, 10))
     model = NanoFFModel(
         lr=trial.suggest_float("lr", 1e-6, 1e-2, log=True),
         from_weights=False,
         trial=trial,
-        platform=platform,
+        platform=save_as,
     )
     trainer = pl.Trainer(
         max_epochs=2000,
@@ -211,7 +223,7 @@ def objective(trial, platform: str, train_set, val_set):
         precision=32,
         logger=False,
     )
-    trainer.fit(model, train_loader, val_loader)
+    trainer.fit(model, data_module)
     val_loss = trainer.callback_metrics["val_loss"].item()
     if len(trial.study.best_trials) == 0 or val_loss <= trial.study.best_value:
         print(f"New best model found with val_loss={val_loss}")
@@ -221,15 +233,7 @@ def objective(trial, platform: str, train_set, val_set):
 
 def generate_objective(platform: str, save_as: str):
     pl.seed_everything(0)
-    N = 400_000
-    dataset = get_dataset(
-        platform=platform,
-        size=N,
-    )
-
-    N = len(dataset)  # in case we undersampled
-    train_set, val_set = torch.utils.data.random_split(dataset, [int(0.8 * N), N - int(0.8 * N)])
-    return lambda trial: objective(trial, save_as, train_set, val_set)
+    return lambda trial: objective(trial, platform, save_as)
 
 
 if __name__ == "__main__":
