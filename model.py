@@ -1,3 +1,4 @@
+import os
 import json
 import glob
 
@@ -6,7 +7,6 @@ import pandas as pd
 import pytorch_lightning as pl
 import torch
 from matplotlib import pyplot as plt
-from pytorch_lightning.utilities.types import OptimizerLRScheduler
 from torch import nn
 from torch.utils.data import DataLoader, TensorDataset
 
@@ -85,7 +85,7 @@ class NanoFFModel(pl.LightningModule):
             if self.trial.should_prune():
                 raise optuna.TrialPruned()
 
-    def configure_optimizers(self) -> OptimizerLRScheduler:
+    def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), lr=self.lr)
         return optimizer
 
@@ -147,20 +147,20 @@ class NanoFFModel(pl.LightningModule):
 
 
 def get_dataset(platform: str, size: int = -1, symmetrize: bool = False) -> TensorDataset:
-    files = glob.glob(f"data/{platform}/*.csv")
-    assert len(files) > 0, f"No data found for {platform}"
-    df = []
-    for file in files:
-        df.append(pd.read_csv(file))
-    df = pd.concat(df)
+    if os.path.isdir(f"data/{platform}"):
+        files = glob.glob(f"data/{platform}/*.csv")
+        assert len(files) > 0, f"No data found for {platform}"
+        df = []
+        for file in files:
+            df.append(pd.read_csv(file))
+        df = pd.concat(df)
+    else:
+        df = pd.read_feather(f"data/{platform}.feather")
 
-    df = df[df["latActive"] & ~df["steeringPressed"]]
-    df = df[(df["steer"] >= -1) & (df["steer"] <= 1)]
-    df = df[(df["vEgo"] >= 3)]
+    df = df[(df["steer_cmd"] >= -1) & (df["steer_cmd"] <= 1)]
+    df = df[(df["v_ego"] >= 3)]
     df = df[(df["roll"] >= -0.17) & (df["roll"] <= 0.17)]  # +/- 10 degrees
     df["roll"] = df["roll"] * 9.8
-
-    df["latAccel"] = df["latAccelSteeringAngle"]
 
     if symmetrize:
         size = size // 2
@@ -170,19 +170,19 @@ def get_dataset(platform: str, size: int = -1, symmetrize: bool = False) -> Tens
         df = pd.concat([
             df,
             df.assign(
-                lateral_accel=-df["latAccel"],
+                lateral_accel=-df["lateral_accel"],
                 roll=-df["roll"],
-                steer_cmd=-df["steer"],
+                steer_cmd=-df["steer_cmd"],
             ),
         ])
 
     x_cols = [
-        "latAccel",
+        "lateral_accel",
         "roll",
-        "vEgo",
-        "aEgo",
+        "v_ego",
+        "a_ego",
     ]
-    y_col = "steer"
+    y_col = "steer_cmd"
     x = df[x_cols].values
     y = df[y_col].values
     y = (y + 1) / 2  # normalize to [0, 1]

@@ -135,6 +135,14 @@ end
 # ╔═╡ 53b0f8e5-9d70-4280-a427-7a9e75911c37
 m = NanoFFModel{Float32}(model_weights)
 
+# ╔═╡ e4ae5bdb-7cef-45a3-a4d8-3b88f368feb3
+plot(
+	lateral_acceleration,
+	exp.(m(inputs)[2, :]),
+	xlabel="lateral acceleration",
+	ylabel="θ"
+)
+
 # ╔═╡ f14ec22b-472e-48bc-ba21-baadf786a658
 let
 	if n_samples == 0
@@ -146,14 +154,6 @@ let
 	ylims!(p, -3, 3)
 	p
 end
-
-# ╔═╡ e4ae5bdb-7cef-45a3-a4d8-3b88f368feb3
-plot(
-	lateral_acceleration,
-	exp.(m(inputs)[2, :]),
-	xlabel="lateral acceleration",
-	ylabel="θ"
-)
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
@@ -1499,8 +1499,8 @@ version = "1.4.1+1"
 
 # ╔═╡ Cell order:
 # ╠═0795baf3-c925-466e-8fd9-6cfad9780800
-# ╟─f14ec22b-472e-48bc-ba21-baadf786a658
 # ╟─e4ae5bdb-7cef-45a3-a4d8-3b88f368feb3
+# ╟─f14ec22b-472e-48bc-ba21-baadf786a658
 # ╠═89ace1e6-c8a6-49dc-86ab-4db1cdb4baff
 # ╠═fa837e87-be08-4e08-a749-f73566e327cb
 # ╠═cb3a2d63-3187-495d-80fe-cff94d6beaa2
