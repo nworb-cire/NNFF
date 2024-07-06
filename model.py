@@ -1,6 +1,7 @@
 import os
 import json
 import glob
+from typing import Literal
 
 import optuna
 import pandas as pd
@@ -14,16 +15,19 @@ from torch.utils.data import DataLoader, TensorDataset
 class NanoFFModel(pl.LightningModule):
     def __init__(
             self,
-            lr: float,
             hidden_dims: tuple[int, int, int] = (16, 8, 4),
             from_weights: bool = False,
             trial: optuna.Trial | None = None,
             platform: str | None = None,
+            optimizer: Literal["adam", "sgd", "rmsprop", "adamw"] = "adam",
+            opt_args: dict = {},
     ):
         super().__init__()
-        self.lr = lr
         self.trial = trial
         self.platform = platform
+        self.optimizer = optimizer
+        self.opt_args = opt_args
+
         self.model = nn.Sequential(
             nn.Linear(4, hidden_dims[0]),
             nn.ReLU(),
@@ -86,7 +90,17 @@ class NanoFFModel(pl.LightningModule):
                 raise optuna.TrialPruned()
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters(), lr=self.lr)
+        match self.optimizer:
+            case "adam":
+                optimizer = torch.optim.Adam(self.parameters(), **self.opt_args)
+            case "sgd":
+                optimizer = torch.optim.SGD(self.parameters(), **self.opt_args)
+            case "rmsprop":
+                optimizer = torch.optim.RMSprop(self.parameters(), **self.opt_args)
+            case "adamw":
+                optimizer = torch.optim.AdamW(self.parameters(), **self.opt_args)
+            case _:
+                raise ValueError(f"Invalid optimizer: {self.optimizer}")
         return optimizer
 
     def plot(self, epoch: int | None = None, dir_out: str | None = None):
@@ -169,6 +183,7 @@ class DataModule(pl.LightningDataModule):
         else:
             df = pd.read_feather(f"data/{self.platform}.feather")
 
+        df = df[(df["steer_cmd"] >= -1) & (df["steer_cmd"] <= 1)]
         df = df[(df["roll"] >= -0.17) & (df["roll"] <= 0.17)]  # +/- 10 degrees
         df["roll"] = df["roll"] * 9.8
 
@@ -192,8 +207,6 @@ class DataModule(pl.LightningDataModule):
     def train_dataloader(self):
         assert self.df_train is not None
         df = self.df_train
-        df = df[(df["steer_cmd"] >= -1) & (df["steer_cmd"] <= 1)]
-        df = df[(df["v_ego"] >= 3)]
         if self.symmetrize:
             raise NotImplementedError
         dataset = self.split(df)
@@ -202,6 +215,7 @@ class DataModule(pl.LightningDataModule):
     def val_dataloader(self):
         assert self.df_val is not None
         df = self.df_val
+        df = df[(df["v_ego"] >= 3)]
         dataset = self.split(df)
         # larger batch size since we aren't computing gradients
         return DataLoader(dataset, batch_size=4 * self.batch_size, shuffle=False)
@@ -209,12 +223,35 @@ class DataModule(pl.LightningDataModule):
 
 def objective(trial, platform: str, save_as: str):
     pl.seed_everything(0)
-    data_module = DataModule(platform, N_train=320_000, N_val=80_000, batch_size=2 ** trial.suggest_int("batch_size_exp", 6, 10))
+    data_module = DataModule(
+        platform,
+        N_train=400_000,
+        N_val=1_000_000,
+        batch_size=2 ** trial.suggest_int("batch_size_exp", 6, 12),
+    )
+    optimizer = trial.suggest_categorical("optimizer", ["adam", "sgd", "rmsprop", "adamw"])
+    opt_args = {
+        "lr": trial.suggest_float("lr", 1e-6, 1., log=True),
+        "weight_decay": trial.suggest_float("weight_decay", 0.0, 1e-2),
+    }
+    match optimizer:
+        case "adam":
+            opt_args["amsgrad"] = trial.suggest_categorical("amsgrad", [True, False])
+        case "sgd":
+            opt_args["momentum"] = trial.suggest_float("momentum", 0.0, 1.0)
+            opt_args["nesterov"] = trial.suggest_categorical("nesterov", [True, False])
+            if not opt_args["nesterov"]:
+                opt_args["dampening"] = trial.suggest_float("dampening", 0.0, 1.0)
+        case "rmsprop":
+            opt_args["alpha"] = trial.suggest_float("alpha", 0.0, 1.0)
+            opt_args["momentum"] = trial.suggest_float("momentum", 0.0, 1.0)
+            opt_args["centered"] = trial.suggest_categorical("centered", [True, False])
     model = NanoFFModel(
-        lr=trial.suggest_float("lr", 1e-6, 1e-2, log=True),
         from_weights=False,
         trial=trial,
         platform=save_as,
+        optimizer=optimizer,
+        opt_args=opt_args,
     )
     trainer = pl.Trainer(
         max_epochs=2000,
@@ -238,18 +275,21 @@ def generate_objective(platform: str, save_as: str):
 
 if __name__ == "__main__":
     study = optuna.create_study(
-        study_name="Volt_Comma",
+        study_name="Volt_5_July",
         direction="minimize",
         storage="sqlite:///optuna.db",
         load_if_exists=True,
-        pruner=optuna.pruners.MedianPruner(n_warmup_steps=598),
+        pruner=optuna.pruners.MedianPruner(n_warmup_steps=748),
     )
     if len(study.trials) == 0:
         study.enqueue_trial(dict(
-            lr=0.0003516815619480295,
-            batch_size_exp=7,
+            lr=0.017952526938733192,
+            batch_size_exp=12,
+            optimizer="adam",
+            weight_decay=0.0008570648247902883,
+            amsgrad=False,
         ))
     study.optimize(
-        generate_objective(platform="CHEVROLET_VOLT_PREMIER_2017", save_as="CHEVROLET_VOLT"),
+        generate_objective(platform="voltlat_large", save_as="CHEVROLET_VOLT"),
         n_trials=30,
     )
