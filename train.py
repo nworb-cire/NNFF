@@ -45,7 +45,7 @@ def objective(trial, platform: str, save_as: str):
         logger=False,
     )
     trainer.fit(model, data_module)
-    return val_loss
+    return trainer.callback_metrics["val_loss"].item()
 
 
 def generate_objective(platform: str, save_as: str):

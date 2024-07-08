@@ -79,7 +79,7 @@ class NanoFFModel(pl.LightningModule):
         return loss
 
     def on_validation_epoch_end(self) -> None:
-        self.plot(self.current_epoch, self.trainer.log_dir)
+        # self.plot(self.current_epoch, self.trainer.log_dir)
         if self.trial is not None:
             val_loss = self.trainer.callback_metrics["val_loss"].item()
             self.trial.report(val_loss, self.current_epoch)
