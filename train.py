@@ -45,10 +45,6 @@ def objective(trial, platform: str, save_as: str):
         logger=False,
     )
     trainer.fit(model, data_module)
-    val_loss = trainer.callback_metrics["val_loss"].item()
-    if len(trial.study.best_trials) == 0 or val_loss <= trial.study.best_value:
-        print(f"New best model found with val_loss={val_loss}")
-        model.save()
     return val_loss
 
 

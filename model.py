@@ -81,7 +81,11 @@ class NanoFFModel(pl.LightningModule):
     def on_validation_epoch_end(self) -> None:
         self.plot(self.current_epoch, self.trainer.log_dir)
         if self.trial is not None:
-            self.trial.report(self.trainer.callback_metrics["val_loss"].item(), self.current_epoch)
+            val_loss = self.trainer.callback_metrics["val_loss"].item()
+            self.trial.report(val_loss, self.current_epoch)
+            if len(self.trial.study.best_trials) == 0 or val_loss <= self.trial.study.best_value:
+                print(f"New best model found with val_loss={val_loss}")
+                self.save()
             if self.trial.should_prune():
                 raise optuna.TrialPruned()
 
