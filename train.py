@@ -38,7 +38,7 @@ def objective(trial, platform: str, save_as: str):
         opt_args=opt_args,
     )
     trainer = pl.Trainer(
-        max_epochs=2000,
+        max_epochs=3000,
         overfit_batches=3,
         check_val_every_n_epoch=250,
         precision=32,
@@ -59,7 +59,7 @@ def generate_objective(platform: str, save_as: str):
 
 if __name__ == "__main__":
     study = optuna.create_study(
-        study_name="Volt_7_July",
+        study_name="Volt_7_July2",
         direction="minimize",
         storage="sqlite:///optuna.db",
         load_if_exists=True,
@@ -67,11 +67,13 @@ if __name__ == "__main__":
     )
     if len(study.trials) == 0:
         study.enqueue_trial(dict(
-            lr=0.017952526938733192,
-            batch_size_exp=12,
-            optimizer="adam",
-            weight_decay=0.0008570648247902883,
-            amsgrad=False,
+            lr=0.0014664174213001465,
+            batch_size_exp=7,
+            optimizer="rmsprop",
+            weight_decay=0.0016544514184878858,
+            alpha=0.4512242322713218,
+            momentum=0.7434816089935976,
+            centered=False,
         ))
     study.optimize(
         generate_objective(platform="voltlat_large", save_as="CHEVROLET_VOLT"),

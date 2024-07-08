@@ -27,18 +27,15 @@ class DataModule(pl.LightningDataModule):
         self.symmetrize = symmetrize
         self.batch_size = batch_size
 
-    def bucket(self, df: pd.DataFrame) -> pd.DataFrame:
-        """
-        Splits the DataFrame into buckets to ensure that the validation set has a representative distribution.
-        :param df:
-        :return:
-        """
+    def bucket(self, df: pd.DataFrame, n_buckets: int = 15, bucket_size: int = -1) -> pd.DataFrame:
+        """Splits the DataFrame into buckets to ensure that the validation set has a representative distribution."""
         df = df.copy()
-        df["steer_bucket"] = pd.cut(df[self.y_col], bins=15, labels=False)
-        min_bucket = df.groupby("steer_bucket").size().min()
-        print(f"Minimum bucket size: {min_bucket}")
+        df["steer_bucket"] = pd.cut(df[self.y_col], bins=n_buckets, labels=False)
+        if bucket_size < 0:
+            bucket_size = df.groupby("steer_bucket").size().min()
+        print(f"Bucket size: {bucket_size}")
         df = df.groupby("steer_bucket").apply(
-            lambda x: x.sample(min_bucket, random_state=0)
+            lambda x: x.sample(bucket_size, random_state=0, replace=True)
         )
         df.index = df.index.droplevel(0)
         df = df.drop(columns=["steer_bucket"])
@@ -65,7 +62,9 @@ class DataModule(pl.LightningDataModule):
             print(f"Warning: N_val ({self.N_val}) >= len(df_val) ({len(self.df_val)}), using all validation data")
         else:
             self.df_val = self.df_val.sample(self.N_val, random_state=0)
-        self.df_train = df.drop(self.df_val.index).sample(self.N_train, random_state=0, replace=True)
+        self.df_train = self.bucket(
+            df.drop(self.df_val.index), n_buckets=30, bucket_size=self.N_train // 30
+        ).sample(self.N_train, random_state=0, replace=True)
 
     def split(self, df: pd.DataFrame) -> TensorDataset:
         x = torch.tensor(df[self.x_cols].values, dtype=torch.float32)
@@ -84,7 +83,7 @@ class DataModule(pl.LightningDataModule):
     def val_dataloader(self):
         assert self.df_val is not None
         df = self.df_val
-        df = df[(df["v_ego"] >= 3)]
+        df = df[(df[self.x_cols[2]] >= 3)]
         dataset = self.split(df)
         # larger batch size since we aren't computing gradients
         return DataLoader(dataset, batch_size=4 * self.batch_size, shuffle=False)
