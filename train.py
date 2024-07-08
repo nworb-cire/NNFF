@@ -30,6 +30,8 @@ def objective(trial, platform: str, save_as: str):
             opt_args["alpha"] = trial.suggest_float("alpha", 0.0, 1.0)
             opt_args["momentum"] = trial.suggest_float("momentum", 0.0, 1.0)
             opt_args["centered"] = trial.suggest_categorical("centered", [True, False])
+        case "adamw":
+            opt_args["amsgrad"] = trial.suggest_categorical("amsgrad", [True, False])
     model = NanoFFModel(
         from_weights=False,
         trial=trial,
@@ -38,9 +40,9 @@ def objective(trial, platform: str, save_as: str):
         opt_args=opt_args,
     )
     trainer = pl.Trainer(
-        max_epochs=3000,
+        max_epochs=5000,
         overfit_batches=3,
-        check_val_every_n_epoch=250,
+        check_val_every_n_epoch=500,
         precision=32,
         logger=False,
     )
@@ -63,13 +65,11 @@ if __name__ == "__main__":
     )
     if len(study.trials) == 0:
         study.enqueue_trial(dict(
-            lr=0.0014664174213001465,
-            batch_size_exp=7,
-            optimizer="rmsprop",
-            weight_decay=0.0016544514184878858,
-            alpha=0.4512242322713218,
-            momentum=0.7434816089935976,
-            centered=False,
+            batch_size_exp=6,
+            optimizer="adam",
+            lr=0.025030171365745,
+            weight_decay=0.007735702305580764,
+            amsgrad=True,
         ))
     study.optimize(
         generate_objective(platform="voltlat_large", save_as="CHEVROLET_VOLT"),

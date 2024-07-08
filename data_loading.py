@@ -41,6 +41,13 @@ class DataModule(pl.LightningDataModule):
         df = df.drop(columns=["steer_bucket"])
         return df
 
+    def symmetrize_frame(self, df: pd.DataFrame) -> pd.DataFrame:
+        return pd.concat([df, df.assign(**{
+            self.x_cols[1]: -df[self.x_cols[1]],
+            self.x_cols[2]: -df[self.x_cols[2]],
+            self.y_col: -df[self.y_col],
+        })])
+
     def setup(self, stage: str | None = None):
         if os.path.isdir(f"data/{self.platform}"):
             files = glob.glob(f"data/{self.platform}/*.csv")
@@ -76,7 +83,7 @@ class DataModule(pl.LightningDataModule):
         assert self.df_train is not None
         df = self.df_train
         if self.symmetrize:
-            raise NotImplementedError
+            df = self.symmetrize_frame(df)
         dataset = self.split(df)
         return DataLoader(dataset, batch_size=self.batch_size, shuffle=True)
 
@@ -84,6 +91,8 @@ class DataModule(pl.LightningDataModule):
         assert self.df_val is not None
         df = self.df_val
         df = df[(df[self.x_cols[2]] >= 3)]
+        if self.symmetrize:
+            df = self.symmetrize_frame(df)
         dataset = self.split(df)
         # larger batch size since we aren't computing gradients
         return DataLoader(dataset, batch_size=4 * self.batch_size, shuffle=False)
