@@ -11,6 +11,14 @@ class DataModule(pl.LightningDataModule):
     df_train: pd.DataFrame
     df_val: pd.DataFrame
 
+    x_cols = [
+        "lateral_accel",
+        "roll",
+        "v_ego",
+        "a_ego",
+    ]
+    y_col = "steer_cmd"
+
     def __init__(self, platform: str, N_train: int, N_val: int, symmetrize: bool = False, batch_size: int = 64):
         super().__init__()
         self.platform = platform
@@ -18,6 +26,23 @@ class DataModule(pl.LightningDataModule):
         self.N_val = N_val
         self.symmetrize = symmetrize
         self.batch_size = batch_size
+
+    def bucket(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Splits the DataFrame into buckets to ensure that the validation set has a representative distribution.
+        :param df:
+        :return:
+        """
+        df = df.copy()
+        df["steer_bucket"] = pd.cut(df[self.y_col], bins=15, labels=False)
+        min_bucket = df.groupby("steer_bucket").size().min()
+        print(f"Minimum bucket size: {min_bucket}")
+        df = df.groupby("steer_bucket").apply(
+            lambda x: x.sample(min_bucket, random_state=0)
+        )
+        df.index = df.index.droplevel(0)
+        df = df.drop(columns=["steer_bucket"])
+        return df
 
     def setup(self, stage: str | None = None):
         if os.path.isdir(f"data/{self.platform}"):
@@ -28,26 +53,23 @@ class DataModule(pl.LightningDataModule):
                 df.append(pd.read_csv(file))
             df = pd.concat(df)
         else:
-            df = pd.read_feather(f"data/{self.platform}.feather")
+            df = pd.read_feather(f"data/{self.platform}.feather", columns=self.x_cols + [self.y_col])
 
-        df = df[(df["steer_cmd"] >= -1) & (df["steer_cmd"] <= 1)]
-        df = df[(df["roll"] >= -0.17) & (df["roll"] <= 0.17)]  # +/- 10 degrees
-        df["roll"] = df["roll"] * 9.8
+        df = df[(df[self.y_col] >= -1) & (df[self.y_col] <= 1)]
+        # roll
+        df = df[(df[self.x_cols[1]] >= -0.17) & (df[self.x_cols[1]] <= 0.17)]  # +/- 10 degrees
+        df[self.x_cols[1]] = df[self.x_cols[1]] * 9.8
 
-        self.df_val = df.sample(self.N_val, random_state=0)
-        self.df_train = df.drop(self.df_val.index).sample(self.N_train, random_state=0)
+        self.df_val = self.bucket(df)
+        if self.N_val >= len(self.df_val):
+            print(f"Warning: N_val ({self.N_val}) >= len(df_val) ({len(self.df_val)}), using all validation data")
+        else:
+            self.df_val = self.df_val.sample(self.N_val, random_state=0)
+        self.df_train = df.drop(self.df_val.index).sample(self.N_train, random_state=0, replace=True)
 
-    @staticmethod
-    def split(df: pd.DataFrame) -> TensorDataset:
-        x_cols = [
-            "lateral_accel",
-            "roll",
-            "v_ego",
-            "a_ego",
-        ]
-        y_col = "steer_cmd"
-        x = torch.tensor(df[x_cols].values, dtype=torch.float32)
-        y = torch.tensor(df[y_col].values, dtype=torch.float32)
+    def split(self, df: pd.DataFrame) -> TensorDataset:
+        x = torch.tensor(df[self.x_cols].values, dtype=torch.float32)
+        y = torch.tensor(df[self.y_col].values, dtype=torch.float32)
         y = (y + 1) / 2  # normalize to [0, 1]
         return TensorDataset(x, y)
 

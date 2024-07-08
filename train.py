@@ -59,7 +59,7 @@ def generate_objective(platform: str, save_as: str):
 
 if __name__ == "__main__":
     study = optuna.create_study(
-        study_name="Volt_5_July",
+        study_name="Volt_7_July",
         direction="minimize",
         storage="sqlite:///optuna.db",
         load_if_exists=True,
@@ -75,5 +75,5 @@ if __name__ == "__main__":
         ))
     study.optimize(
         generate_objective(platform="voltlat_large", save_as="CHEVROLET_VOLT"),
-        n_trials=1,
+        n_trials=30,
     )
