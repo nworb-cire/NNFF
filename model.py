@@ -79,7 +79,6 @@ class NanoFFModel(pl.LightningModule):
         return loss
 
     def on_validation_epoch_end(self) -> None:
-        # self.plot(self.current_epoch, self.trainer.log_dir)
         if self.trial is not None:
             val_loss = self.trainer.callback_metrics["val_loss"].item()
             self.trial.report(val_loss, self.current_epoch)
@@ -102,39 +101,6 @@ class NanoFFModel(pl.LightningModule):
             case _:
                 raise ValueError(f"Invalid optimizer: {self.optimizer}")
         return optimizer
-
-    def plot(self, epoch: int | None = None, dir_out: str | None = None):
-        lat_accel = torch.linspace(-3, 3, 100)
-        fig, ax = plt.subplots(3, 3, figsize=(15, 15))
-        v_ego = 16
-        for i, roll in enumerate([-1, 0, 1]):
-            for j, a_ego in enumerate([-1, 0, 1]):
-                x = torch.stack([lat_accel, torch.full_like(lat_accel, roll), torch.full_like(lat_accel, v_ego),
-                                 torch.full_like(lat_accel, a_ego)], dim=1).to(self.input_norm_mat.device)
-                y_hat = self.forward(x)
-                y_hat = y_hat * (self.output_norm_mat[1] - self.output_norm_mat[0]) + self.output_norm_mat[0]
-                steer_cmd = y_hat[:, 0].cpu().detach().numpy()
-                ax[i, j].plot(lat_accel, steer_cmd)
-                ax[i, j].set_title(f"roll={roll}, a_ego={a_ego}")
-                ax[i, j].set_ylim(-1.3, 1.3)
-        plt.tight_layout()
-        if dir_out is not None:
-            plt.savefig(f"{dir_out}/plot_{epoch}.png")
-        else:
-            plt.show()
-
-        plt.clf()
-        x = torch.stack([lat_accel, torch.zeros_like(lat_accel), torch.full_like(lat_accel, 16.), torch.zeros_like(lat_accel)], dim=1).to(self.input_norm_mat.device)
-        y_hat = self.forward(x)
-        theta = torch.exp(y_hat[:, 1]).cpu().detach().numpy()
-        plt.plot(lat_accel, theta)
-        plt.title("theta")
-        plt.xlabel("lateral_accel")
-        plt.ylabel("theta")
-        if dir_out is not None:
-            plt.savefig(f"{dir_out}/theta_{epoch}.png")
-        else:
-            plt.show()
 
     def save(self):
         assert self.platform is not None
