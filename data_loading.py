@@ -43,6 +43,7 @@ class LateralData(pl.LightningDataModule, abc.ABC):
         if self.symmetrize:
             df = self.symmetrize_frame(df)
         dataset = self.split(df)
+        print(f"Training on {len(dataset)} samples")
         return DataLoader(dataset, batch_size=self.batch_size, shuffle=True)
 
     def val_dataloader(self):
@@ -53,7 +54,11 @@ class LateralData(pl.LightningDataModule, abc.ABC):
             df = self.symmetrize_frame(df)
         dataset = self.split(df)
         # larger batch size since we aren't computing gradients
-        return DataLoader(dataset, batch_size=16 * self.batch_size, shuffle=False, drop_last=True)
+        batch_size = 16 * self.batch_size
+        # prune to a multiple of the batch size
+        dataset = dataset[:len(dataset) // batch_size * batch_size]
+        print(f"Validating on {len(dataset)} samples")
+        return DataLoader(dataset, batch_size=batch_size, shuffle=False, drop_last=True)
 
 
 class CommaData(LateralData):
