@@ -53,7 +53,7 @@ class LateralData(pl.LightningDataModule, abc.ABC):
             df = self.symmetrize_frame(df)
         dataset = self.split(df)
         # larger batch size since we aren't computing gradients
-        return DataLoader(dataset, batch_size=16 * self.batch_size, shuffle=False)
+        return DataLoader(dataset, batch_size=16 * self.batch_size, shuffle=False, drop_last=True)
 
 
 class CommaData(LateralData):
