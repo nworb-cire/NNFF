@@ -1,3 +1,7 @@
+import argparse
+import json
+from datetime import datetime
+
 import optuna
 import pytorch_lightning as pl
 
@@ -56,22 +60,38 @@ def generate_objective(platform: str, save_as: str):
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("platform", type=str)
+    args = parser.parse_args()
+
+    platform = args.platform
+    with open("fingerprint_migration.json") as f:
+        fingerprint_migration = json.load(f)
+    assert platform in fingerprint_migration, f"Platform {platform} not found in fingerprint_migration.json"
+
     study = optuna.create_study(
-        study_name="Volt_7_July2",
+        study_name=f"{platform}_{datetime.today().strftime("%b_%d")}",
         direction="minimize",
         storage="sqlite:///optuna.db",
         load_if_exists=True,
         pruner=optuna.pruners.MedianPruner(n_warmup_steps=748),
     )
-    if len(study.trials) == 0:
-        study.enqueue_trial(dict(
-            batch_size_exp=6,
-            optimizer="adam",
-            lr=0.025030171365745,
-            weight_decay=0.007735702305580764,
-            amsgrad=True,
-        ))
+    with open("best_params.json") as f:
+        best_params = json.load(f)
+    if platform in best_params:
+        best_loss = best_params[platform].pop("loss")
+    else:
+        best_loss = float("inf")
+
+    if len(study.trials) == 0 and platform in best_params:
+        study.enqueue_trial(best_params[platform])
     study.optimize(
-        generate_objective(platform="voltlat_large", save_as="CHEVROLET_VOLT"),
-        n_trials=30,
+        generate_objective(platform=fingerprint_migration[platform], save_as=platform),
+        n_trials=100,
     )
+    if study.best_trial.value < best_loss:
+        best_params[platform] = study.best_params
+        best_params[platform]["loss"] = study.best_trial.value
+        with open("best_params.json", "w") as f:
+            json.dump(best_params, f)
+
