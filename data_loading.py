@@ -77,6 +77,9 @@ class CommaData(LateralData):
             df.append(df_)
         df = pd.concat(df)
 
+        df[self.y_col] = -df[self.y_col]
+        df[self.x_cols[1]] = df[self.x_cols[1]] * 9.8  # roll
+
         # 50% holdout
         route_ids = df["routeId"].unique()
         np.random.seed(0)
