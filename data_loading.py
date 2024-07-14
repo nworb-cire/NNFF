@@ -16,6 +16,8 @@ class LateralData(pl.LightningDataModule, abc.ABC):
     x_cols: list[str]
     y_col: str
 
+    N_epochs: int
+
     def __init__(self, platform: str, symmetrize: bool = False, batch_size: int = 64):
         super().__init__()
         self.platform = platform
@@ -63,6 +65,8 @@ class CommaData(LateralData):
     ]
     y_col = "steerFiltered"
 
+    N_epochs = 1500
+
     def setup(self, stage: str | None = None):
         files = glob.glob(f"data/{self.platform}/*.csv")
         assert len(files) > 0, f"No data found for {self.platform}"
@@ -94,6 +98,8 @@ class TWilsonData(LateralData):
     y_col = "steer_cmd"
     N_train = 400_000
     N_val = 1_000_000
+
+    N_epochs = 5000
 
     def bucket(self, df: pd.DataFrame, bins: int | np.ndarray = 15, bucket_size: int = -1) -> pd.DataFrame:
         """Splits the DataFrame into buckets to ensure that the validation set has a representative distribution."""

@@ -11,10 +11,8 @@ from model import NanoFFModel
 
 def objective(trial, platform: str, save_as: str):
     pl.seed_everything(0)
-    data_module = CommaData(
+    data = CommaData(
         platform,
-        N_train=400_000,
-        N_val=1_000_000,
         batch_size=2 ** trial.suggest_int("batch_size_exp", 6, 12),
     )
     optimizer = trial.suggest_categorical("optimizer", ["adam", "sgd", "rmsprop", "adamw"])
@@ -44,13 +42,13 @@ def objective(trial, platform: str, save_as: str):
         opt_args=opt_args,
     )
     trainer = pl.Trainer(
-        max_epochs=5000,
+        max_epochs=data.N_epochs,
         overfit_batches=3,
-        check_val_every_n_epoch=500,
+        check_val_every_n_epoch=data.N_epochs // 10,
         precision=32,
         logger=False,
     )
-    trainer.fit(model, data_module)
+    trainer.fit(model, data)
     return trainer.callback_metrics["val_loss"].item()
 
 

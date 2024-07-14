@@ -82,9 +82,7 @@ class NanoFFModel(pl.LightningModule):
         if self.trial is not None:
             val_loss = self.trainer.callback_metrics["val_loss"].item()
             self.trial.report(val_loss, self.current_epoch)
-            if len(self.trial.study.best_trials) == 0 or val_loss <= self.trial.study.best_value:
-                print(f"New best model found with val_loss={val_loss}")
-                self.save()
+            self.trial.set_user_attr("weights", self.serialize())
             if self.trial.should_prune():
                 raise optuna.TrialPruned()
 
@@ -102,9 +100,8 @@ class NanoFFModel(pl.LightningModule):
                 raise ValueError(f"Invalid optimizer: {self.optimizer}")
         return optimizer
 
-    def save(self):
-        assert self.platform is not None
-        d = {
+    def serialize(self):
+        return {
             "w_1": self.model[0].weight.detach().cpu().numpy().T.tolist(),
             "b_1": self.model[0].bias.detach().cpu().numpy().tolist(),
             "w_2": self.model[2].weight.detach().cpu().numpy().T.tolist(),
@@ -117,10 +114,3 @@ class NanoFFModel(pl.LightningModule):
             "output_norm_mat": self.output_norm_mat.detach().cpu().numpy().tolist(),
             "temperature": self.temperature,
         }
-
-        path = "/Users/eric/PycharmProjects/openpilot/selfdrive/car/torque_data/neural_ff_weights.json"
-        with open(path, "r") as f:
-            existing = json.load(f)
-        existing[self.platform] = d
-        with open(path, "w") as f:
-            f.write(json.dumps(existing))
