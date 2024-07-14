@@ -121,15 +121,17 @@ class NanoFFModel(pl.LightningModule):
     def on_train_end(self) -> None:
         x = np.linspace(-3, 3, 100)
         roll = np.zeros_like(x)
-        v_ego = 16 * np.ones_like(x)
+        vego = 10
+        v_ego = vego * np.ones_like(x)
         a_ego = np.zeros_like(x)
         x = np.stack([x, roll, v_ego, a_ego], axis=1)
         y = self.forward(torch.tensor(x, dtype=torch.float32, device=self.device)).detach().cpu().numpy()
+        y = 2 * y - 1
 
         plt.plot(x[:, 0], y[:, 0])
         plt.xlabel("Lateral Acceleration (m/s^2)")
         plt.ylabel("Steer Command")
-        plt.title("roll = 0, vEgo = 16, aEgo = 0")
+        plt.title(f"roll = 0, vEgo = {vego}, aEgo = 0")
         plt.show()
         path = Path(f"logs/{self.platform}/{datetime.today().strftime('%b_%d')}/{self.trial.number}.png")
         path.parent.mkdir(parents=True, exist_ok=True)
