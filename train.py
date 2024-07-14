@@ -49,7 +49,10 @@ def objective(trial, platform: str, save_as: str):
         logger=False,
     )
     trainer.fit(model, datamodule=data)
-    return trainer.callback_metrics["val_loss"].item()
+    try:
+        return trainer.callback_metrics["val_loss"].item()
+    except KeyError:
+        return float("nan")
 
 
 def generate_objective(platform: str, save_as: str):
