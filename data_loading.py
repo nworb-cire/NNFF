@@ -70,26 +70,28 @@ class CommaData(LateralData):
     def setup(self, stage: str | None = None):
         files = glob.glob(f"data/{self.platform}/*.csv")
         assert len(files) > 0, f"No data found for {self.platform}"
-        df = []
+        dfs = []
         for file in files:
-            df_ = pd.read_csv(file)
-            df_["routeId"] = os.path.basename(file).split("_")[0]
-            df_[self.x_cols[0]] = df_[self.x_cols[0]].shift(-8)  # actuator delay
-            df.append(df_)
-        df = pd.concat(df)
+            df = pd.read_csv(file)
 
-        df[self.y_col] = -df[self.y_col]
-        df[self.x_cols[1]] = df[self.x_cols[1]] * 9.8  # roll
+            df["routeId"] = os.path.basename(file).split("_")[0]
+            df = df[~df["steeringPressed"]]
+            df[self.y_col] = -df[self.y_col]
+            df[self.x_cols[0]] = df[self.x_cols[0]].shift(-8)  # actuator delay
+            df[self.x_cols[1]] = df[self.x_cols[1]] * 9.8  # roll
+
+            df.dropna(inplace=True, subset=self.x_cols + [self.y_col])
+            dfs.append(df)
+        df = pd.concat(dfs)
 
         # 50% holdout
         route_ids = df["routeId"].unique()
         np.random.seed(0)
         np.random.shuffle(route_ids)
         route_ids_train = route_ids[:len(route_ids) // 2]
-        route_ids_val = route_ids[len(route_ids) // 2:]
 
         self.df_train = df[df["routeId"].isin(route_ids_train)]
-        self.df_val = df[df["routeId"].isin(route_ids_val)]
+        self.df_val = df[~df["routeId"].isin(route_ids_train)]
 
 
 class TWilsonData(LateralData):

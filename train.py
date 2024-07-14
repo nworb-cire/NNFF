@@ -48,7 +48,7 @@ def objective(trial, platform: str, save_as: str):
         precision=32,
         logger=False,
     )
-    trainer.fit(model, data)
+    trainer.fit(model, datamodule=data)
     return trainer.callback_metrics["val_loss"].item()
 
 
