@@ -84,7 +84,7 @@ if __name__ == "__main__":
         study.enqueue_trial(best_params[platform])
     study.optimize(
         generate_objective(platform=fingerprint_migration[platform], save_as=platform),
-        n_trials=100,
+        n_trials=30 - len(study.trials),
     )
     if study.best_trial.value < best_loss:
         best_params[platform] = study.best_params
