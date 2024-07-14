@@ -74,6 +74,7 @@ class CommaData(LateralData):
         for file in files:
             df_ = pd.read_csv(file)
             df_["routeId"] = os.path.basename(file).split("_")[0]
+            df_[self.x_cols[0]] = df_[self.x_cols[0]].shift(-8)  # actuator delay
             df.append(df_)
         df = pd.concat(df)
 
