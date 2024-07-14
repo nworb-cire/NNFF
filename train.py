@@ -13,7 +13,7 @@ def objective(trial, platform: str, save_as: str):
     pl.seed_everything(0)
     data = CommaData(
         platform,
-        batch_size=2 ** trial.suggest_int("batch_size_exp", 6, 12),
+        batch_size=2 ** trial.suggest_int("batch_size_exp", 6, 18),
     )
     optimizer = trial.suggest_categorical("optimizer", ["adam", "sgd", "rmsprop", "adamw"])
     opt_args = {

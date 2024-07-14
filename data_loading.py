@@ -24,6 +24,29 @@ class LateralData(pl.LightningDataModule, abc.ABC):
         self.symmetrize = symmetrize
         self.batch_size = batch_size
 
+    def bucket(self, df: pd.DataFrame, bins: int | np.ndarray | dict[str, int | np.ndarray] = 15, bucket_size: int = -1) -> pd.DataFrame:
+        """Splits the DataFrame into buckets to ensure that the validation set has a representative distribution."""
+        df = df.copy()
+        for col in self.x_cols + [self.y_col]:
+            if isinstance(bins, dict):
+                if col not in bins:
+                    continue
+                bins_ = bins[col]
+            else:
+                bins_ = bins
+            df["bucket"] = pd.cut(df[col], bins=bins_, labels=False)
+            if bucket_size < 0:
+                bucket_size_ = df.groupby("bucket").size().min()
+            else:
+                bucket_size_ = bucket_size
+            print(f"Bucket size for {col}: {bucket_size_}")
+            df = df.groupby("bucket").apply(
+                lambda x: x.sample(bucket_size_, random_state=0, replace=True)
+            )
+            df.index = df.index.droplevel(0)
+            df = df.drop(columns=["bucket"])
+        return df
+
     def symmetrize_frame(self, df: pd.DataFrame) -> pd.DataFrame:
         return pd.concat([df, df.assign(**{
             self.x_cols[1]: -df[self.x_cols[1]],
@@ -101,7 +124,16 @@ class CommaData(LateralData):
         route_ids_train = route_ids[:len(route_ids) // 2]
 
         self.df_train = df[df["routeId"].isin(route_ids_train)]
+
+        bins = {
+            self.y_col: 9,
+            self.x_cols[1]: np.array([-0.17*9.8, *self.df_train[self.x_cols[1]].quantile([0.25, 0.5, 0.75]), 0.17*9.8]),
+            self.x_cols[2]: 4,
+        }
+
+        self.df_train = self.bucket(self.df_train, bins=bins)
         self.df_val = df[~df["routeId"].isin(route_ids_train)]
+        self.df_val = self.bucket(self.df_val, bins=bins)
 
 
 class TWilsonData(LateralData):
@@ -116,20 +148,6 @@ class TWilsonData(LateralData):
     N_val = 1_000_000
 
     N_epochs = 5000
-
-    def bucket(self, df: pd.DataFrame, bins: int | np.ndarray = 15, bucket_size: int = -1) -> pd.DataFrame:
-        """Splits the DataFrame into buckets to ensure that the validation set has a representative distribution."""
-        df = df.copy()
-        df["steer_bucket"] = pd.cut(df[self.y_col], bins=bins, labels=False)
-        if bucket_size < 0:
-            bucket_size = df.groupby("steer_bucket").size().min()
-        print(f"Bucket size: {bucket_size}")
-        df = df.groupby("steer_bucket").apply(
-            lambda x: x.sample(bucket_size, random_state=0, replace=True)
-        )
-        df.index = df.index.droplevel(0)
-        df = df.drop(columns=["steer_bucket"])
-        return df
 
     def setup(self, stage: str | None = None):
         df = pd.read_feather(f"data/{self.platform}.feather", columns=self.x_cols + [self.y_col])
