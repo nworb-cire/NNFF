@@ -5,13 +5,13 @@ from datetime import datetime
 import optuna
 import pytorch_lightning as pl
 
-from data_loading import DataModule
+from data_loading import CommaData
 from model import NanoFFModel
 
 
 def objective(trial, platform: str, save_as: str):
     pl.seed_everything(0)
-    data_module = DataModule(
+    data_module = CommaData(
         platform,
         N_train=400_000,
         N_val=1_000_000,
@@ -55,13 +55,12 @@ def objective(trial, platform: str, save_as: str):
 
 
 def generate_objective(platform: str, save_as: str):
-    pl.seed_everything(0)
     return lambda trial: objective(trial, platform, save_as)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("platform", type=str)
+    parser.add_argument("--platform", type=str)
     args = parser.parse_args()
 
     platform = args.platform
