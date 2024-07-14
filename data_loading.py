@@ -75,10 +75,16 @@ class CommaData(LateralData):
             df = pd.read_csv(file)
 
             df["routeId"] = os.path.basename(file).split("_")[0]
-            df = df[~df["steeringPressed"]]
-            df[self.y_col] = -df[self.y_col]
             df[self.x_cols[0]] = df[self.x_cols[0]].shift(-8)  # actuator delay
+            df[self.y_col] = -df[self.y_col]
             df[self.x_cols[1]] = df[self.x_cols[1]] * 9.8  # roll
+
+            # filter rows where steering has not been pressed for 10 time steps
+            pd.set_option("future.no_silent_downcasting", True)
+            for i in range(10):
+                df[f"steeringPressed{i}"] = df["steeringPressed"].shift(i)
+                df[f"steeringPressed{i}"] = df[f"steeringPressed{i}"].fillna(True)
+            df = df[~df[[f"steeringPressed{i}" for i in range(10)]].any(axis=1)]
 
             df.dropna(inplace=True, subset=self.x_cols + [self.y_col])
             dfs.append(df)
@@ -86,7 +92,6 @@ class CommaData(LateralData):
 
         # 50% holdout
         route_ids = df["routeId"].unique()
-        np.random.seed(0)
         np.random.shuffle(route_ids)
         route_ids_train = route_ids[:len(route_ids) // 2]
 
