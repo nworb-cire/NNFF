@@ -50,9 +50,24 @@ def objective(trial, platform: str, save_as: str):
     )
     trainer.fit(model, datamodule=data)
     try:
-        return trainer.callback_metrics["val_loss"].item()
+        loss = trainer.callback_metrics["val_loss"].item()
     except KeyError:
-        return float("nan")
+        loss = float("nan")
+
+    try:
+        if loss < trial.study.best_trial.value:
+            with open("best_params.json", "w") as f:
+                best_params = json.load(f)
+                best_params[platform] = trial.params
+                best_params[platform]["loss"] = loss
+                json.dump(best_params, f)
+            with open("/Users/eric/PycharmProjects/openpilot/selfdrive/car/torque_data/neural_ff_weights.json", "w") as f:
+                model_params = json.load(f)
+                model_params[save_as] = model.serialize()
+                json.dump(model_params, f)
+    except ValueError:
+        pass
+    return loss
 
 
 def generate_objective(platform: str, save_as: str):
@@ -76,22 +91,13 @@ if __name__ == "__main__":
         load_if_exists=True,
         pruner=optuna.pruners.MedianPruner(n_warmup_steps=748),
     )
-    with open("best_params.json") as f:
-        best_params = json.load(f)
-    if platform in best_params:
-        best_loss = best_params[platform].pop("loss")
-    else:
-        best_loss = float("inf")
-
-    if len(study.trials) == 0 and platform in best_params:
-        study.enqueue_trial(best_params[platform])
+    if len(study.trials) == 0:
+        with open("best_params.json") as f:
+            best_params = json.load(f)
+        if platform in best_params:
+            best_params[platform].pop("loss")
+            study.enqueue_trial(best_params[platform])
     study.optimize(
         generate_objective(platform=fingerprint_migration[platform], save_as=platform),
         n_trials=30 - len(study.trials),
     )
-    if study.best_trial.value < best_loss:
-        best_params[platform] = study.best_params
-        best_params[platform]["loss"] = study.best_trial.value
-        with open("best_params.json", "w") as f:
-            json.dump(best_params, f)
-
