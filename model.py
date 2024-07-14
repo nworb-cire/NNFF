@@ -1,6 +1,9 @@
 import json
+from datetime import datetime
+from pathlib import Path
 from typing import Literal
 
+import numpy as np
 import optuna
 import pytorch_lightning as pl
 import torch
@@ -114,3 +117,20 @@ class NanoFFModel(pl.LightningModule):
             "output_norm_mat": self.output_norm_mat.detach().cpu().numpy().tolist(),
             "temperature": self.temperature,
         }
+
+    def on_train_end(self) -> None:
+        x = np.linspace(-3, 3, 100)
+        roll = np.zeros_like(x)
+        v_ego = 16 * np.ones_like(x)
+        a_ego = np.zeros_like(x)
+        x = np.stack([x, roll, v_ego, a_ego], axis=1)
+        y = self.forward(torch.tensor(x, dtype=torch.float32, device=self.device)).detach().cpu().numpy()
+
+        plt.plot(x[:, 0], y[:, 0])
+        plt.xlabel("Lateral Acceleration (m/s^2)")
+        plt.ylabel("Steer Command")
+        plt.title("roll = 0, vEgo = 16, aEgo = 0")
+        plt.show()
+        path = Path(f"logs/{self.platform}/{datetime.today().strftime('%b_%d')}/{self.trial.number}.png")
+        path.parent.mkdir(parents=True, exist_ok=True)
+        plt.savefig(path)
