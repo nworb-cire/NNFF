@@ -35,7 +35,7 @@ def objective(trial, platform: str, save_as: str):
         case "adamw":
             opt_args["amsgrad"] = trial.suggest_categorical("amsgrad", [True, False])
     model = NanoFFModel(
-        from_weights=False,
+        from_weights=trial.suggest_categorical("from_weights", [True, False]),
         trial=trial,
         platform=save_as,
         optimizer=optimizer,
