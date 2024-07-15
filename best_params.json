@@ -1,0 +1,12 @@
+{
+  "CHEVROLET_VOLT": {
+    "batch_size_exp": 7,
+    "optimizer": "rmsprop",
+    "lr": 0.0014664174213001465,
+    "weight_decay": 0.0016544514184878858,
+    "alpha": 0.4512242322713218,
+    "momentum": 0.7434816089935976,
+    "centered": false,
+    "loss": 0.0
+  }
+}
