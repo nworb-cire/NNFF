@@ -112,11 +112,17 @@ class CommaData(LateralData):
             for i in range(10):
                 df[f"steeringPressed{i}"] = df["steeringPressed"].shift(i)
                 df[f"steeringPressed{i}"] = df[f"steeringPressed{i}"].fillna(True)
-            df = df[~df[[f"steeringPressed{i}" for i in range(10)]].any(axis=1)]
 
-            df.dropna(inplace=True, subset=self.x_cols + [self.y_col])
+            # filter out rows where lateral acceleration is changing too quickly
+            df["lateral_accel"] = df["latAccelSteeringAngle"].diff() / 0.1
+
             dfs.append(df)
+
         df = pd.concat(dfs)
+
+        df = df[~df[[f"steeringPressed{i}" for i in range(10)]].any(axis=1)]
+        df = df[(df["lateral_accel"].abs() < 0.5) & (df["vEgo"] > 3)]
+        df.dropna(inplace=True, subset=self.x_cols + [self.y_col])
 
         # 50% holdout
         route_ids = df["routeId"].unique()
