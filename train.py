@@ -85,10 +85,12 @@ if __name__ == "__main__":
             n_trials=50 - len(study.trials),
         )
     finally:
+        params = study.best_trial.params
+        loss = study.best_trial.value
         with open("best_params.json", "w") as f:
             best_params = json.load(f)
-            best_params[platform] = study.best_trial.params
-            best_params[platform]["loss"] = study.best_trial.value
+            best_params[platform] = params
+            best_params[platform]["loss"] = loss
             json.dump(best_params, f)
         weights = study.best_trial.user_attrs["weights"]
         with open("../openpilot/selfdrive/car/torque_data/neural_ff_weights.json", "w") as f:
