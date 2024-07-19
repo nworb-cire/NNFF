@@ -49,25 +49,7 @@ def objective(trial, platform: str, save_as: str):
         logger=False,
     )
     trainer.fit(model, datamodule=data)
-    try:
-        loss = trainer.callback_metrics["val_loss"].item()
-    except KeyError:
-        loss = float("nan")
-
-    try:
-        if loss < trial.study.best_trial.value:
-            with open("best_params.json", "w") as f:
-                best_params = json.load(f)
-                best_params[platform] = trial.params
-                best_params[platform]["loss"] = loss
-                json.dump(best_params, f)
-            with open("/Users/eric/PycharmProjects/openpilot/selfdrive/car/torque_data/neural_ff_weights.json", "w") as f:
-                model_params = json.load(f)
-                model_params[save_as] = model.serialize()
-                json.dump(model_params, f)
-    except ValueError:
-        pass
-    return loss
+    return trainer.callback_metrics["val_loss"].item()
 
 
 def generate_objective(platform: str, save_as: str):
@@ -97,7 +79,19 @@ if __name__ == "__main__":
         if platform in best_params:
             best_params[platform].pop("loss")
             study.enqueue_trial(best_params[platform])
-    study.optimize(
-        generate_objective(platform=fingerprint_migration[platform], save_as=platform),
-        n_trials=50 - len(study.trials),
-    )
+    try:
+        study.optimize(
+            generate_objective(platform=fingerprint_migration[platform], save_as=platform),
+            n_trials=50 - len(study.trials),
+        )
+    finally:
+        with open("best_params.json", "w") as f:
+            best_params = json.load(f)
+            best_params[platform] = study.best_trial.params
+            best_params[platform]["loss"] = study.best_trial.value
+            json.dump(best_params, f)
+        weights = study.best_trial.user_attrs["weights"]
+        with open("../openpilot/selfdrive/car/torque_data/neural_ff_weights.json", "w") as f:
+            model_params = json.load(f)
+            model_params[platform] = weights
+            json.dump(model_params, f)
