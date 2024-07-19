@@ -150,7 +150,8 @@ class TWilsonData(LateralData):
     N_epochs = 5000
 
     def setup(self, stage: str | None = None):
-        df = pd.read_feather(f"data/{self.platform}.feather", columns=self.x_cols + [self.y_col])
+        assert self.platform == "CHEVROLET_VOLT_PREMIER_2017"
+        df = pd.read_feather("data/voltlat_large.feather", columns=self.x_cols + [self.y_col])
 
         df = df[(df[self.y_col] >= -1) & (df[self.y_col] <= 1)]
         # roll
