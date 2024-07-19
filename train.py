@@ -13,7 +13,7 @@ def objective(trial, platform: str, save_as: str):
     pl.seed_everything(0)
     data = CommaData(
         platform,
-        batch_size=2 ** trial.suggest_int("batch_size_exp", 6, 18),
+        batch_size=2 ** 16,
     )
     optimizer = trial.suggest_categorical("optimizer", ["adam", "sgd", "rmsprop", "adamw"])
     opt_args = {
@@ -35,7 +35,7 @@ def objective(trial, platform: str, save_as: str):
         case "adamw":
             opt_args["amsgrad"] = trial.suggest_categorical("amsgrad", [True, False])
     model = NanoFFModel(
-        from_weights=trial.suggest_categorical("from_weights", [True, False]),
+        from_weights=False,
         trial=trial,
         platform=save_as,
         optimizer=optimizer,
@@ -89,7 +89,7 @@ if __name__ == "__main__":
         direction="minimize",
         storage="sqlite:///optuna.db",
         load_if_exists=True,
-        pruner=optuna.pruners.MedianPruner(n_warmup_steps=748),
+        pruner=optuna.pruners.MedianPruner(),
     )
     if len(study.trials) == 0:
         with open("best_params.json") as f:
@@ -99,5 +99,5 @@ if __name__ == "__main__":
             study.enqueue_trial(best_params[platform])
     study.optimize(
         generate_objective(platform=fingerprint_migration[platform], save_as=platform),
-        n_trials=30 - len(study.trials),
+        n_trials=50 - len(study.trials),
     )
