@@ -75,12 +75,15 @@ class LateralData(pl.LightningDataModule, abc.ABC):
         df = df[(df[self.x_cols[2]] >= 3)]
         if self.symmetrize:
             df = self.symmetrize_frame(df)
-        dataset = self.split(df)
         # larger batch size since we aren't computing gradients
         batch_size = 16 * self.batch_size
-        # prune to a multiple of the batch size
-        dataset = dataset[:len(dataset) // batch_size * batch_size]
-        print(f"Validating on {len(dataset)} samples")
+        if batch_size < len(df):
+            # prune to a multiple of the batch size
+            df = df[:len(df) // batch_size * batch_size]
+        else:
+            batch_size = len(df)
+        print(f"Validating on {len(df)} samples")
+        dataset = self.split(df)
         return DataLoader(dataset, batch_size=batch_size, shuffle=False, drop_last=True)
 
 
