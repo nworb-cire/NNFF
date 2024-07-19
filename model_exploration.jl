@@ -33,7 +33,7 @@ n = length(lateral_acceleration)
 @bind n_samples Slider(0:n:20n, show_value=true)  # 0 for deterministic
 
 # ╔═╡ 0efae837-6661-4092-bac7-2919e8080b85
-@bind roll_compensation Slider(-3.:0.01:3., default=0., show_value=true)
+@bind roll_compensation Slider(-3.:0.01:3., default=0.21, show_value=true)
 
 # ╔═╡ 48bb40d1-f31c-4d07-b2b3-39ec2223dc35
 @bind vego Slider(0.:0.1:40., default=16., show_value=true)  # 16m/s ≈ 36mph
@@ -50,11 +50,13 @@ inputs = Float32[
 # ╔═╡ 015a6b8c-41e1-4288-b99d-0554a62abf16
 url = "https://raw.githubusercontent.com/nworb-cire/openpilot/volt-nnff/selfdrive/car/torque_data/neural_ff_weights.json"
 
+# ╔═╡ 2e1c47a4-d9b9-44fa-991d-f66552cf4877
+import JSON
+
 # ╔═╡ bca046b6-a59f-4571-9741-e67e640b9c9d
 all_weights = let
-	import HTTP
-	import JSON
-	response = HTTP.get(url)
+	# import HTTP
+	# response = HTTP.get(url)
 	# JSON.parse(String(response.body))
 	JSON.parse(open("/Users/eric/PycharmProjects/openpilot/selfdrive/car/torque_data/neural_ff_weights.json"))
 end
@@ -159,7 +161,6 @@ end
 PLUTO_PROJECT_TOML_CONTENTS = """
 [deps]
 Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
-HTTP = "cd3eb016-35fb-5094-929b-558a96fad6f3"
 JSON = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
 NNlib = "872c559c-99b0-510c-b3b7-b6c96a88d5cd"
 Plots = "91a5bcdd-55d7-5caf-9e0b-520d859cae80"
@@ -168,9 +169,8 @@ Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 
 [compat]
 Distributions = "~0.25.109"
-HTTP = "~1.10.8"
 JSON = "~0.21.4"
-NNlib = "~0.9.17"
+NNlib = "~0.9.18"
 Plots = "~1.40.4"
 PlutoUI = "~0.7.59"
 """
@@ -181,7 +181,7 @@ PLUTO_MANIFEST_TOML_CONTENTS = """
 
 julia_version = "1.10.4"
 manifest_format = "2.0"
-project_hash = "48bcab52542c4688813c5f95d9e08949f211c27d"
+project_hash = "d835bb8f42aba1057cf5b0de2eddf5b1ec518d4f"
 
 [[deps.AbstractPlutoDingetjes]]
 deps = ["Pkg"]
@@ -222,9 +222,9 @@ version = "0.1.0"
 uuid = "2a0f44e3-6c83-55bd-87e4-b1978d98bd5f"
 
 [[deps.BitFlags]]
-git-tree-sha1 = "2dc09997850d68179b69dafb58ae806167a32b1b"
+git-tree-sha1 = "0691e34b3bb8be9307330f88d1a3c3f25466c24d"
 uuid = "d1d4a3ce-64b1-5f1a-9ba4-7e7e69966f35"
-version = "0.1.8"
+version = "0.1.9"
 
 [[deps.Bzip2_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
@@ -790,9 +790,9 @@ version = "2023.1.10"
 
 [[deps.NNlib]]
 deps = ["Adapt", "Atomix", "ChainRulesCore", "GPUArraysCore", "KernelAbstractions", "LinearAlgebra", "Pkg", "Random", "Requires", "Statistics"]
-git-tree-sha1 = "3d4617f943afe6410206a5294a95948c8d1b35bd"
+git-tree-sha1 = "78de319bce99d1d8c1d4fe5401f7cfc2627df396"
 uuid = "872c559c-99b0-510c-b3b7-b6c96a88d5cd"
-version = "0.9.17"
+version = "0.9.18"
 
     [deps.NNlib.extensions]
     NNlibAMDGPUExt = "AMDGPU"
@@ -1509,6 +1509,7 @@ version = "1.4.1+1"
 # ╠═c9a294d0-eb3b-4c7e-a662-7d896f88ba9b
 # ╠═71b59ab9-f3e7-40a1-8446-b23a41703aea
 # ╟─015a6b8c-41e1-4288-b99d-0554a62abf16
+# ╠═2e1c47a4-d9b9-44fa-991d-f66552cf4877
 # ╠═bca046b6-a59f-4571-9741-e67e640b9c9d
 # ╠═a09bf2e3-a801-4d9a-9187-cfb3bcabbe25
 # ╠═672e0838-b253-446e-bc82-baba03e6fe71

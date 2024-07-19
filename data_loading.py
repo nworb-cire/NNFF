@@ -135,7 +135,7 @@ class CommaData(LateralData):
         self.df_train = df[df["routeId"].isin(route_ids_train)]
 
         bins = {
-            self.y_col: 9,
+            self.y_col: 5,
             self.x_cols[1]: np.array([-0.17*9.8, *self.df_train[self.x_cols[1]].quantile([0.25, 0.5, 0.75]), 0.17*9.8]),
             self.x_cols[2]: 4,
         }
