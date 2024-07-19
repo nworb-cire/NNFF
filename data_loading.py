@@ -79,7 +79,7 @@ class LateralData(pl.LightningDataModule, abc.ABC):
         batch_size = 16 * self.batch_size
         if batch_size < len(df):
             # prune to a multiple of the batch size
-            df = df[:len(df) // batch_size * batch_size]
+            df = df.sample(len(df) // batch_size * batch_size, random_state=0)
         else:
             batch_size = len(df)
         print(f"Validating on {len(df)} samples")
