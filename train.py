@@ -59,6 +59,7 @@ def generate_objective(platform: str, save_as: str):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--platform", type=str)
+    parser.add_argument("--n_trials", type=int, default=50)
     args = parser.parse_args()
 
     platform = args.platform
@@ -82,7 +83,7 @@ if __name__ == "__main__":
     try:
         study.optimize(
             generate_objective(platform=fingerprint_migration[platform], save_as=platform),
-            n_trials=50 - len(study.trials),
+            n_trials=args.n_trials - len(study.trials),
         )
     finally:
         params = study.best_trial.params
