@@ -11,6 +11,90 @@ from matplotlib import pyplot as plt
 from torch import nn
 
 
+class ManifoldConstrainedModel(nn.Module):
+    def __init__(
+            self,
+            hidden_dims: tuple[int, int, int] = (16, 8, 4),
+    ):
+        super().__init__()
+        self.W1 = nn.Parameter(torch.randn(hidden_dims[0], 4))
+        # self.b1 = nn.Parameter(torch.randn(hidden_dims[0]))
+        self.W2 = nn.Parameter(torch.randn(hidden_dims[1], hidden_dims[0]))
+        # self.b2 = nn.Parameter(torch.randn(hidden_dims[1]))
+        self.W3 = nn.Parameter(torch.randn(hidden_dims[2], hidden_dims[1]))
+        # self.b3 = nn.Parameter(torch.randn(hidden_dims[2]))
+        self.W4 = nn.Parameter(torch.randn(2, hidden_dims[2]))
+        # self.b4 = nn.Parameter(torch.randn(2))
+        self.softplus = nn.Softplus()
+
+    def transform_parameters(self):
+        W1 = torch.concat([torch.abs(self.W1[:, 0].unsqueeze(1)), self.W1[:, 1:]], dim=1)
+        W2 = -torch.abs(self.W2)
+        W3 = -torch.abs(self.W3)
+        W4 = torch.concat([self.W4[0].unsqueeze(0), torch.abs(self.W4[1].unsqueeze(0))], dim=0)
+        return W1, W2, W3, W4
+
+    def forward(self, x):
+        """
+        Forward pass constraining the output to a manifold where the following condition holds:
+
+        ∂y₁/∂x₁ = ReLU(h₁(x)) ⊙ ReLU(h₂(x)) ⊙ ReLU(h₃(x)) ⊙ W₄[0,:] W₃ W₂ W₁[:, 0] > 0
+        :param x:
+        :return:
+        """
+        W1, W2, W3, W4 = self.transform_parameters()
+        h1 = torch.relu(W1 @ x.T)
+        h2 = torch.relu(W2 @ h1)
+        h3 = torch.relu(W3 @ h2)
+        y = W4 @ h3
+        return y.T
+
+    def serialize(self):
+        W1, W2, W3, W4 = self.transform_parameters()
+        return {
+            "w_1": W1.detach().cpu().numpy().T.tolist(),
+            # "b_1": self.b1.detach().cpu().numpy().tolist(),
+            "w_2": W2.detach().cpu().numpy().T.tolist(),
+            # "b_2": self.b2.detach().cpu().numpy().tolist(),
+            "w_3": W3.detach().cpu().numpy().T.tolist(),
+            # "b_3": self.b3.detach().cpu().numpy().tolist(),
+            "w_4": W4.detach().cpu().numpy().T.tolist(),
+            # "b_4": self.b4.detach().cpu().numpy().tolist(),
+        }
+
+
+class Sequential(nn.Module):
+    def __init__(
+            self,
+            hidden_dims: tuple[int, int, int] = (16, 8, 4),
+    ):
+        super().__init__()
+        self.model = nn.Sequential(
+            nn.Linear(4, hidden_dims[0]),
+            nn.ReLU(),
+            nn.Linear(hidden_dims[0], hidden_dims[1]),
+            nn.ReLU(),
+            nn.Linear(hidden_dims[1], hidden_dims[2]),
+            nn.ReLU(),
+            nn.Linear(hidden_dims[2], 2),
+        )
+
+    def forward(self, x):
+        return self.model(x)
+
+    def serialize(self):
+        return {
+            "w_1": self.model[0].weight.detach().cpu().numpy().T.tolist(),
+            "b_1": self.model[0].bias.detach().cpu().numpy().tolist(),
+            "w_2": self.model[2].weight.detach().cpu().numpy().T.tolist(),
+            "b_2": self.model[2].bias.detach().cpu().numpy().tolist(),
+            "w_3": self.model[4].weight.detach().cpu().numpy().T.tolist(),
+            "b_3": self.model[4].bias.detach().cpu().numpy().tolist(),
+            "w_4": self.model[6].weight.detach().cpu().numpy().T.tolist(),
+            "b_4": self.model[6].bias.detach().cpu().numpy().tolist(),
+        }
+
+
 class NanoFFModel(pl.LightningModule):
     def __init__(
             self,
@@ -27,15 +111,7 @@ class NanoFFModel(pl.LightningModule):
         self.optimizer = optimizer
         self.opt_args = opt_args
 
-        self.model = nn.Sequential(
-            nn.Linear(4, hidden_dims[0]),
-            nn.ReLU(),
-            nn.Linear(hidden_dims[0], hidden_dims[1]),
-            nn.ReLU(),
-            nn.Linear(hidden_dims[1], hidden_dims[2]),
-            nn.ReLU(),
-            nn.Linear(hidden_dims[2], 2),
-        )
+        self.model = ManifoldConstrainedModel(hidden_dims)
         if from_weights:
             with open("/Users/eric/PycharmProjects/openpilot/selfdrive/car/torque_data/neural_ff_weights.json",
                       "r") as f:
@@ -105,14 +181,7 @@ class NanoFFModel(pl.LightningModule):
 
     def serialize(self):
         return {
-            "w_1": self.model[0].weight.detach().cpu().numpy().T.tolist(),
-            "b_1": self.model[0].bias.detach().cpu().numpy().tolist(),
-            "w_2": self.model[2].weight.detach().cpu().numpy().T.tolist(),
-            "b_2": self.model[2].bias.detach().cpu().numpy().tolist(),
-            "w_3": self.model[4].weight.detach().cpu().numpy().T.tolist(),
-            "b_3": self.model[4].bias.detach().cpu().numpy().tolist(),
-            "w_4": self.model[6].weight.detach().cpu().numpy().T.tolist(),
-            "b_4": self.model[6].bias.detach().cpu().numpy().tolist(),
+            **self.model.serialize(),
             "input_norm_mat": self.input_norm_mat.detach().cpu().numpy().tolist(),
             "output_norm_mat": self.output_norm_mat.detach().cpu().numpy().tolist(),
             "temperature": self.temperature,
