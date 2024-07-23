@@ -23,8 +23,9 @@ class ValidationModule:
 
     def add_lags(self, df: pd.DataFrame) -> pd.DataFrame:
         # endogenous lags
+        df["target"] = df[self.target].shift(-1)
         for i in range(1, self.ar_order[0] + 1):
-            df[f"{self.target}_{i}"] = df[self.target].shift(-i)
+            df[f"{self.target}_{i}"] = df[self.target].shift(i)
 
         # exogenous lags
         for col in self.exog:
@@ -32,7 +33,7 @@ class ValidationModule:
                 df[col] = df[col].shift(-self.actuator_delay)
             else:
                 for i in range(1, self.ar_order[1] + 1):
-                    df[f"{col}_{i}"] = df[col].shift(-i)
+                    df.loc[:, f"{col}_{i}"] = df[col].shift(i)
 
         df = df.dropna()
         return df
@@ -43,8 +44,8 @@ class ValidationModule:
         with joblib.Parallel(n_jobs=-1) as parallel:
             dfs = parallel(joblib.delayed(self.add_lags)(df) for df in dfs)
         df = pd.concat(dfs).reset_index(drop=True)
-        X = df.drop(columns=[self.target])
-        y = df[self.target]
+        X = df.drop(columns=["target"])
+        y = df["target"]
         print(f"Fitting model with {len(X):,} samples")
         return self.model.fit(X, y)
 
