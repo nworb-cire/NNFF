@@ -1,3 +1,4 @@
+import joblib
 import pandas as pd
 
 
@@ -9,7 +10,7 @@ class ValidationModule:
         target: str,
         exog: list[str],
         actuator_delay: int = 8,  # measured empirically
-        actuator_command: str = "steerFiltered",
+        actuator_command: str | None = "steerFiltered",
     ):
         self.model = model
         self.ar_order = ar_order
@@ -36,11 +37,15 @@ class ValidationModule:
         df = df.dropna()
         return df
 
-    def fit(self, dfs: list[pd.DataFrame]):
-        dfs = [self.add_lags(df) for df in dfs]
+    def fit(self, dfs: list[pd.DataFrame] | pd.DataFrame):
+        if isinstance(dfs, pd.DataFrame):
+            dfs = [dfs]
+        with joblib.Parallel(n_jobs=-1) as parallel:
+            dfs = parallel(joblib.delayed(self.add_lags)(df) for df in dfs)
         df = pd.concat(dfs).reset_index(drop=True)
         X = df.drop(columns=[self.target])
         y = df[self.target]
+        print(f"Fitting model with {len(X):,} samples")
         return self.model.fit(X, y)
 
     def predict(self, df: pd.DataFrame, n: int = 10) -> pd.Series:
