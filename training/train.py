@@ -5,7 +5,7 @@ from datetime import datetime
 import optuna
 import pytorch_lightning as pl
 
-from data_loading import CommaData
+from training.data_loading import CommaData
 from model import NanoFFModel
 
 
@@ -95,8 +95,8 @@ if __name__ == "__main__":
         with open("best_params.json", "w") as f:
             json.dump(best_params, f, indent=2)
         weights = study.best_trial.user_attrs["weights"]
-        with open("../openpilot/selfdrive/car/torque_data/neural_ff_weights.json") as f:
+        with open("../../openpilot/selfdrive/car/torque_data/neural_ff_weights.json") as f:
             model_params = json.load(f)
         model_params[platform] = weights
-        with open("../openpilot/selfdrive/car/torque_data/neural_ff_weights.json", "w") as f:
+        with open("../../openpilot/selfdrive/car/torque_data/neural_ff_weights.json", "w") as f:
             json.dump(model_params, f)
