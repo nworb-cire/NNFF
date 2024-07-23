@@ -35,7 +35,7 @@ class ValidationModule:
                 for i in range(1, self.ar_order[1] + 1):
                     df.loc[:, f"{col}_{i}"] = df[col].shift(i)
 
-        df = df.dropna()
+        df = df.dropna(subset=[c for c in df.columns if c != "target"])
         return df
 
     def fit(self, dfs: list[pd.DataFrame] | pd.DataFrame):
@@ -49,13 +49,14 @@ class ValidationModule:
         print(f"Fitting model with {len(X):,} samples")
         return self.model.fit(X, y)
 
-    def predict(self, df: pd.DataFrame, n: int = 10) -> pd.Series:
+    def predict(self, df: pd.DataFrame, n: int = 15) -> pd.Series:
         df = df.copy()
-
         start = self.ar_order[0] + 1
-        for i in range(start + 1, start + n):
+        df.loc[start:, self.target] = None  # avoid inadvertent data leakage
+
+        for i in range(start, start + n):
             X = df.iloc[i-start:i]
-            X = self.add_lags(X).drop(columns=[self.target])
+            X = self.add_lags(X)
             pred = self.model.predict(X)
             df.loc[i, self.target] = pred
-        return df[self.target].iloc[start:]
+        return df[self.target].iloc[:start + n]

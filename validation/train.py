@@ -4,8 +4,9 @@ import os
 import joblib
 import numpy as np
 import pandas as pd
-from xgboost import XGBRegressor
+from matplotlib import pyplot as plt
 
+from validation.models import TrivialModel
 from validation.wrapper import ValidationModule
 
 
@@ -23,7 +24,7 @@ if __name__ == "__main__":
         model = joblib.load("model.pkl")
         pretrained = True
     else:
-        model = XGBRegressor()
+        model = TrivialModel("latAccelLocalizer")
         pretrained = False
     wrapper = ValidationModule(
         model=model,
@@ -41,6 +42,15 @@ if __name__ == "__main__":
 
     with joblib.Parallel(n_jobs=-1) as parallel:
         preds = parallel(joblib.delayed(wrapper.predict)(df) for df in dfs_val)
+    for i, (df, pred) in enumerate(zip(dfs_val, preds)):
+        if i % 20 != 0:
+            continue
+        ground_truth = df[wrapper.target][:12+15]
+        plt.plot(ground_truth, label="Ground truth")
+        plt.plot(pred, label="Prediction")
+        plt.title(f"Validation sample {i}")
+        plt.legend()
+        plt.show()
     losses = [
         ((df[wrapper.target][12:] - pred) ** 2).mean()
         for df, pred in zip(dfs_val, preds)
