@@ -43,7 +43,7 @@ class ValidationModule:
             dfs = [dfs]
         with joblib.Parallel(n_jobs=-1) as parallel:
             dfs = parallel(joblib.delayed(self.add_lags)(df) for df in dfs)
-        df = pd.concat(dfs).reset_index(drop=True)
+        df = pd.concat(dfs).reset_index(drop=True).dropna()
         X = df.drop(columns=["target"])
         y = df["target"]
         print(f"Fitting model with {len(X):,} samples")
@@ -56,7 +56,7 @@ class ValidationModule:
 
         for i in range(start, start + n):
             X = df.iloc[i-start:i]
-            X = self.add_lags(X)
+            X = self.add_lags(X).drop(columns=["target"])
             pred = self.model.predict(X)
             df.loc[i, self.target] = pred
         return df[self.target].iloc[:start + n]
