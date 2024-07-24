@@ -49,7 +49,7 @@ class ValidationModule:
         print(f"Fitting model with {len(X):,} samples")
         return self.model.fit(X, y)
 
-    def predict(self, df: pd.DataFrame, n: int = 15) -> pd.Series:
+    def predict(self, df: pd.DataFrame, n: int = 20) -> pd.Series:
         df = df.copy()
         start = self.ar_order[0] + 1
         df.loc[start:, self.target] = None  # avoid inadvertent data leakage
